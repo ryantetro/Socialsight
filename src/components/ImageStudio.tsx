@@ -38,23 +38,23 @@ export default function ImageStudio({ initialTitle, hostname, url }: ImageStudio
     };
 
     return (
-        <div className="bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-sm overflow-hidden relative group">
+        <div className="bg-white rounded-[2.5rem] p-6 md:p-10 border border-slate-200 shadow-sm overflow-hidden relative group">
             {/* Removed Background Decoration */}
 
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 md:mb-10">
                 <div className="space-y-1">
                     <div className="flex items-center gap-2 text-blue-600 mb-2">
-                        <Sparkles size={20} className="fill-blue-600" />
-                        <span className="text-xs font-black uppercase tracking-[0.2em]">Pro Feature</span>
+                        <Sparkles size={16} className="fill-blue-600 md:w-5 md:h-5" />
+                        <span className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em]">Pro Feature</span>
                     </div>
-                    <h3 className="text-3xl font-black text-slate-900 leading-tight">OG Image Studio</h3>
-                    <p className="text-slate-500 font-medium">Create high-converting social preview images.</p>
+                    <h3 className="text-2xl md:text-3xl font-black text-slate-900 leading-tight">OG Image Studio</h3>
+                    <p className="text-slate-500 font-medium text-sm md:text-base">Create high-converting social preview images.</p>
                 </div>
 
                 <button
                     onClick={handleGenerate}
                     disabled={isGenerating}
-                    className="px-8 py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-2xl font-black text-sm shadow-xl shadow-blue-500/20 transition-all active:scale-95 flex items-center justify-center gap-3 group/btn"
+                    className="w-full md:w-auto px-6 py-3 md:px-8 md:py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-xl md:rounded-2xl font-black text-sm shadow-xl shadow-blue-500/20 transition-all active:scale-95 flex items-center justify-center gap-2 md:gap-3 group/btn"
                 >
                     {isGenerating ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5 group-hover/btn:rotate-12 transition-transform" />}
                     {isGenerating ? 'Optimizing...' : 'Generate Optimized Image'}

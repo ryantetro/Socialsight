@@ -26,6 +26,7 @@ export interface InspectionResult {
         totalScans: number;
         percentile: number;
     };
+    siteId?: string;
 }
 
 export interface AISuggestion {

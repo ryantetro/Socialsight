@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, LineChart, AlertCircle, CheckCircle2, ArrowLeft, ExternalLink, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, LineChart, AlertCircle, CheckCircle2, ArrowLeft, ExternalLink, RefreshCw, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useScrape } from '@/hooks/useScrape';
 import { InspectionResult } from '@/types';
@@ -81,35 +81,53 @@ export default function Dashboard() {
 
     if (selectedProject) {
         return (
-            <div className="space-y-8 animate-fade-in">
+            <div className="space-y-6 md:space-y-8 animate-fade-in pb-32">
                 {/* Header */}
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
                     <button
                         onClick={() => setSelectedProject(null)}
-                        className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+                        className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-all shrink-0"
                     >
-                        <ArrowLeft size={20} />
+                        <ArrowLeft size={18} />
                     </button>
-                    <div>
-                        <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
-                            {selectedProject.hostname}
+                    <div className="min-w-0 flex-1 w-full md:w-auto">
+                        <div className="flex items-center gap-2 md:gap-3 mb-1">
+                            <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-100 p-1 shrink-0">
+                                <img
+                                    src={`https://www.google.com/s2/favicons?domain=${selectedProject.hostname}&sz=64`}
+                                    alt="favicon"
+                                    className="w-full h-full object-contain"
+                                />
+                            </div>
+                            <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate">
+                                {selectedProject.hostname}
+                            </h2>
+                        </div>
+                        <div className="flex items-center gap-2 text-slate-500 font-medium text-xs md:pl-11">
                             <span className={cn(
-                                "px-3 py-1 rounded-full text-xs uppercase tracking-wider",
+                                "px-2 py-0.5 rounded-full flex items-center gap-1.5 shrink-0 transition-colors",
                                 selectedProject.status === 'healthy' ? "bg-green-100 text-green-700" :
                                     selectedProject.status === 'warning' ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"
                             )}>
-                                {selectedProject.status}
+                                {selectedProject.status === 'healthy' && (
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                    </span>
+                                )}
+                                {selectedProject.status === 'healthy' ? 'Monitoring Active' : selectedProject.status}
                             </span>
-                        </h2>
-                        <a href={selectedProject.url} target="_blank" rel="noreferrer" className="text-sm text-slate-500 hover:text-blue-600 flex items-center gap-1 font-medium">
-                            {selectedProject.url} <ExternalLink size={12} />
-                        </a>
+                            <span className="text-slate-300">•</span>
+                            <a href={selectedProject.url} target="_blank" rel="noreferrer" className="hover:text-blue-600 flex items-center gap-1 truncate transition-colors">
+                                {selectedProject.url} <ExternalLink size={10} />
+                            </a>
+                        </div>
                     </div>
-                    <div className="ml-auto flex items-center gap-3">
+                    <div className="w-full md:w-auto ml-auto flex items-center gap-3">
                         <button
                             onClick={handleRescan}
                             disabled={loading}
-                            className="px-4 py-2 bg-slate-900 text-white rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-black transition-colors disabled:opacity-50"
+                            className="w-full md:w-auto px-4 py-3 md:py-2 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-black transition-colors disabled:opacity-50 shadow-lg shadow-slate-900/10 active:scale-95"
                         >
                             <RefreshCw size={14} className={cn(loading && "animate-spin")} />
                             {loading ? "Scanning..." : "Scan Now"}
@@ -117,22 +135,27 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
                     {/* Left Column: Stats */}
                     <div className="space-y-6 lg:col-span-2">
                         {/* Score Card */}
-                        <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm flex items-center justify-between">
-                            <div>
-                                <h3 className="text-slate-500 font-bold uppercase tracking-widest text-xs mb-2">Current OpenGraph Score</h3>
-                                <div className="text-6xl font-black text-slate-900 tracking-tight">{selectedProject.lastScore}</div>
+                        <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-32 bg-blue-500/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none transition-all group-hover:bg-blue-500/10" />
+
+                            <div className="relative z-10 w-full sm:w-auto">
+                                <h3 className="text-slate-500 font-bold uppercase tracking-widest text-[10px] md:text-xs mb-2 flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                                    Current OpenGraph Score
+                                </h3>
+                                <div className="text-6xl md:text-7xl font-black text-slate-900 tracking-tight">{selectedProject.lastScore}</div>
                             </div>
-                            <div className="h-20 flex items-end gap-2">
+                            <div className="h-20 w-full sm:w-auto flex items-end gap-2 relative z-10">
                                 {/* Historical bars (mock) */}
                                 {[45, 50, 65, 70, 75, 82, selectedProject.lastScore].map((val, i) => (
-                                    <div key={i} className="flex flex-col items-center gap-1 group">
-                                        <div className="text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity mb-1">{val}</div>
+                                    <div key={i} className="flex flex-col items-center gap-1 group/bar flex-1 sm:flex-none">
+                                        <div className="text-[10px] font-bold opacity-0 group-hover/bar:opacity-100 transition-opacity mb-1 absolute -top-4">{val}</div>
                                         <div style={{ height: `${val / 1.5}px` }} className={cn(
-                                            "w-4 rounded-t-md transition-all",
+                                            "w-full sm:w-4 rounded-t-md transition-all",
                                             i === 6 ? "bg-blue-600" : "bg-slate-100 group-hover:bg-slate-200"
                                         )} />
                                     </div>
@@ -141,7 +164,7 @@ export default function Dashboard() {
                         </div>
 
                         {/* Recent Alerts */}
-                        <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm">
+                        <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm">
                             <h3 className="font-bold text-lg mb-6">Recent Alerts</h3>
                             <div className="space-y-4">
                                 {selectedProject.lastScore < 90 ? (
@@ -167,7 +190,7 @@ export default function Dashboard() {
 
                     {/* Right Column: Preview */}
                     <div className="space-y-6">
-                        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
+                        <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm">
                             <h3 className="font-bold text-lg mb-4">Live Preview</h3>
                             {selectedProject.metadata?.ogImage ? (
                                 <div className="rounded-xl overflow-hidden border border-slate-100 aspect-[1.91/1] bg-slate-100 relative group cursor-pointer hover:ring-4 hover:ring-blue-500/20 transition-all">
@@ -253,13 +276,29 @@ export default function Dashboard() {
                             <Trash2 size={16} />
                         </button>
 
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className={cn(
-                                "w-3 h-3 rounded-full animate-pulse",
-                                project.status === 'healthy' ? "bg-green-500" :
-                                    project.status === 'warning' ? "bg-yellow-500" : "bg-red-500"
-                            )} />
-                            <h3 className="font-bold text-lg text-slate-900 truncate">{project.hostname}</h3>
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-10 h-10 bg-white rounded-lg border border-slate-100 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
+                                <img
+                                    src={`https://www.google.com/s2/favicons?domain=${project.hostname}&sz=64`}
+                                    alt={project.hostname}
+                                    className="w-6 h-6 object-contain"
+                                />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 mb-0.5">
+                                    <h3 className="font-bold text-lg text-slate-900 truncate">{project.hostname}</h3>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <div className={cn(
+                                        "w-2 h-2 rounded-full animate-pulse",
+                                        project.status === 'healthy' ? "bg-green-500" :
+                                            project.status === 'warning' ? "bg-yellow-500" : "bg-red-500"
+                                    )} />
+                                    <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                                        {project.status === 'healthy' ? 'Active' : project.status}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="space-y-6">
@@ -279,9 +318,21 @@ export default function Dashboard() {
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-slate-50 p-2 rounded-lg">
-                                <CheckCircle2 size={14} className="text-green-600" />
-                                Last scan: {new Date(project.lastScan).toLocaleDateString()}
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-slate-50 p-2 rounded-lg justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Shield size={14} className="text-blue-600 fill-blue-600/20" />
+                                    <span className="text-blue-700">Protected</span>
+                                </div>
+                                <div className="font-mono text-[10px] uppercase tracking-wider text-slate-400">
+                                    Next check: {(() => {
+                                        const nextCheck = new Date(project.lastScan).getTime() + (24 * 60 * 60 * 1000);
+                                        const diff = nextCheck - Date.now();
+                                        if (diff <= 0) return 'Scanning...';
+                                        const h = Math.floor(diff / (1000 * 60 * 60));
+                                        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                                        return `${h}h ${m}m`;
+                                    })()}
+                                </div>
                             </div>
                         </div>
                     </div>

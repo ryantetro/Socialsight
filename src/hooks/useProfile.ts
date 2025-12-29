@@ -28,7 +28,9 @@ export function useProfile() {
             try {
                 // Timeout wrapper for getUser
                 const getUserPromise = supabase.auth.getUser();
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 5000));
+                const timeoutPromise = new Promise((resolve) => {
+                    setTimeout(() => resolve({ data: { user: null }, error: { message: 'Auth timeout' } }), 15000);
+                });
 
                 const result = await Promise.race([getUserPromise, timeoutPromise]) as any;
                 const { data: { user }, error } = result;
@@ -78,7 +80,9 @@ export function useProfile() {
                 .eq('id', userId)
                 .single();
 
-            const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Profile timeout')), 5000));
+            const timeout = new Promise((resolve) => {
+                setTimeout(() => resolve({ data: null, error: { message: 'Profile timeout' } }), 15000);
+            });
             const { data, error } = await Promise.race([query, timeout]) as any;
 
             if (!error && data) {

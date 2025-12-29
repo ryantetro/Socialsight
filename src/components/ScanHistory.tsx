@@ -39,7 +39,7 @@ export default function ScanHistory({ user, onSelectScan }: ScanHistoryProps) {
                     .eq('user_id', user.id)
                     .order('created_at', { ascending: false });
 
-                const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Scans timeout')), 5000));
+                const timeout = new Promise((resolve) => setTimeout(() => resolve({ data: null, error: { message: 'Scans timeout' } }), 15000));
                 const { data, error } = await Promise.race([query, timeout]) as any;
 
                 if (!error && data) {
@@ -99,9 +99,9 @@ export default function ScanHistory({ user, onSelectScan }: ScanHistoryProps) {
                         >
                             {/* Preview Image Header */}
                             <div className="aspect-[1.91/1] bg-slate-100 relative border-b border-slate-100">
-                                {scan.result.metadata.ogImage ? (
+                                {scan.result?.metadata?.ogImage ? (
                                     <img
-                                        src={scan.result.metadata.ogImage}
+                                        src={scan.result?.metadata?.ogImage}
                                         alt="Preview"
                                         className="w-full h-full object-cover"
                                         loading="lazy"
@@ -123,8 +123,8 @@ export default function ScanHistory({ user, onSelectScan }: ScanHistoryProps) {
                             </div>
 
                             <div className="p-6 flex-1 flex flex-col">
-                                <h3 className="font-bold text-slate-900 line-clamp-1 mb-1" title={scan.result.metadata.title}>
-                                    {scan.result.metadata.title || "Untitled Page"}
+                                <h3 className="font-bold text-slate-900 line-clamp-1 mb-1" title={scan.result?.metadata?.title}>
+                                    {scan.result?.metadata?.title || "Untitled Page"}
                                 </h3>
                                 <div className="flex items-center gap-1 text-slate-400 text-xs font-medium mb-4 truncate">
                                     <ExternalLink size={12} />

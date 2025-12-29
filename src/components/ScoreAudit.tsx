@@ -167,7 +167,7 @@ export default function ScoreAudit({ score, issues, stats }: ScoreAuditProps) {
                     className="w-full bg-slate-900 hover:bg-black text-white p-5 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-slate-200 group/btn overflow-hidden relative">
                     <div className="absolute inset-0 bg-blue-600 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300" />
                     <Zap className="w-4 h-4 relative z-10 fill-amber-400 text-amber-400 group-hover/btn:scale-110 transition-transform" />
-                    <span className="relative z-10">Fix All Issues Instantly ($149)</span>
+                    <span className="relative z-10">Fix All Issues Instantly ($99)</span>
                     <ArrowRight className="w-4 h-4 relative z-10 group-hover/btn:translate-x-1 transition-transform" />
                 </button>
                 <p className="text-center text-[10px] text-slate-400 mt-4 font-bold uppercase tracking-widest">

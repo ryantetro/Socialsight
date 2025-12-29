@@ -19,8 +19,19 @@ export default function LockedFeature({
     blurAmount = 'md',
     label = "Unlock Premium Features",
     onUnlock,
-    className
-}: LockedFeatureProps) {
+    className,
+    lockBody = false
+}: LockedFeatureProps & { lockBody?: boolean }) {
+
+    React.useEffect(() => {
+        if (isLocked && lockBody) {
+            document.body.style.overflow = 'hidden';
+            return () => {
+                document.body.style.overflow = '';
+            };
+        }
+    }, [isLocked, lockBody]);
+
     if (!isLocked) {
         return <>{children}</>;
     }
@@ -40,7 +51,7 @@ export default function LockedFeature({
     };
 
     return (
-        <div className={cn("relative group overflow-hidden rounded-[inherit]", className)}>
+        <div className={cn("relative group overflow-hidden rounded-[inherit]", isLocked && "h-[70vh] md:h-auto overflow-hidden", className)}>
             <div className={cn(
                 "transition-all duration-500 select-none pointer-events-none",
                 blurAmount === 'sm' && "blur-sm opacity-80",

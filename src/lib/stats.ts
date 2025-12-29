@@ -1,4 +1,4 @@
-import { SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient, createClient } from '@supabase/supabase-js';
 
 export async function recordScore(score: number, url: string, supabase: SupabaseClient) {
     try {
@@ -17,18 +17,31 @@ export async function recordScore(score: number, url: string, supabase: Supabase
             // Fallback: don't ruin the UX, just return simulated stats
         }
 
-        // 2. Get Real Stats
+        // 2. Get Real Stats (Bypassing RLS with Admin Client)
+        // We need the Service Role key to count *all* rows, regardless of RLS policies for the current user/anon.
+        const adminClient = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            {
+                auth: {
+                    persistSession: false,
+                    autoRefreshToken: false,
+                    detectSessionInUrl: false
+                }
+            }
+        );
+
         // Count total scans
-        const { count: realCount, error: countError } = await supabase
+        const { count: realCount, error: countError } = await adminClient
             .from('scans')
             .select('*', { count: 'exact', head: true });
 
         // Calculate Percentile (approximate)
         // Count how many scores are lower than this one
-        const { count: lowerCount, error: lowerError } = await supabase
+        const { count: lowerCount, error: lowerError } = await adminClient
             .from('scans')
             .select('*', { count: 'exact', head: true })
-            .lt('result->>score', score); // Assuming result is jsonb and has score
+            .lt('result->score', score); // Use ->score to compare as number/json matches our previous fix
 
         const totalScans = (realCount || 0) + 13530; // Base offset for social proof
         const lower = lowerCount || 0;

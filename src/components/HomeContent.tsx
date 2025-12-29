@@ -3,12 +3,13 @@
 
 import { useState, useCallback, Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import ScraperForm from '@/components/ScraperForm';
+import ScraperForm from './ScraperForm';
 import SocialPreviews from '@/components/SocialPreviews';
 import ScoreAudit from '@/components/ScoreAudit';
 import AISuggestions from '@/components/AISuggestions';
-import MetaSnippet from '@/components/MetaSnippet';
-import ImageStudio from '@/components/ImageStudio';
+import MetaSnippet from './MetaSnippet';
+import ImageStudio from './ImageStudio';
+import GuardianEnrollment from './GuardianEnrollment';
 import CompetitorBoard from '@/components/CompetitorBoard';
 import Dashboard from '@/components/Dashboard';
 import AnalyticsDashboard from '@/components/AnalyticsDashboard';
@@ -26,10 +27,13 @@ import DebugPlanSwitcher from '@/components/DebugPlanSwitcher';
 import UserNav from '@/components/UserNav';
 
 
+import VictoryModal from '@/components/VictoryModal';
+
 export default function HomeContent() {
   const [result, setResult] = useState<InspectionResult | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [activeTab, setActiveTab] = useState<'audit' | 'fix' | 'compare' | 'monitor' | 'analytics' | 'history'>('audit');
+  const [showVictoryModal, setShowVictoryModal] = useState(false);
 
 
   const [debugTier, setDebugTier] = useState<{ active: boolean, tier: any }>({ active: false, tier: 'free' });
@@ -133,19 +137,20 @@ export default function HomeContent() {
       // Save result for restoration
       localStorage.setItem('last_scan_result', JSON.stringify(data));
 
-      // Save to Database if logged in
-      if (user) {
-        const supabase = createClient();
-        await supabase.from('scans').insert({
-          user_id: user.id,
-          url: data.metadata.url || 'unknown',
-          result: data
-        });
-      }
+      // Note: We do NOT insert into DB here anymore because the /api/inspect endpoint
+      // already calls recordScore() which inserts the scan. This prevents double-counting.
 
       setActiveTab('audit');
       setIsTransitioning(false);
       incrementScan();
+
+      // Trigger Victory Modal if score is high and user is free
+      if (data.score >= 90 && !isPaid) {
+        setTimeout(() => {
+          setShowVictoryModal(true);
+        }, 2000);
+      }
+
     }, 300);
   };
 
@@ -233,6 +238,15 @@ export default function HomeContent() {
 
 
 
+  const tabs = [
+    { id: 'audit', icon: LayoutDashboard, label: 'Audit', visible: true },
+    { id: 'fix', icon: Zap, label: 'Fix Mode', fill: true, visible: !!result },
+    { id: 'compare', icon: Scale, label: 'Compare', visible: !!result },
+    { id: 'monitor', icon: Activity, label: 'Monitor', visible: true },
+    { id: 'analytics', icon: PieChart, label: 'Analytics', visible: true },
+    { id: 'history', icon: Clock, label: 'History', visible: true }
+  ].filter(tab => tab.visible);
+
   return (
     <main className="min-h-screen bg-[#fafafa]">
 
@@ -241,7 +255,21 @@ export default function HomeContent() {
         onTierChange={(tier) => setDebugTier({ active: true, tier })}
       />
 
+      <VictoryModal
+        isOpen={showVictoryModal}
+        onClose={() => setShowVictoryModal(false)}
+        onUpgrade={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+        onEnableAnalytics={() => {
+          setShowVictoryModal(false);
+          setActiveTab('fix'); // Send them to fix mode to get tags/image
+          setTimeout(() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }, 100);
+        }}
+      />
+
       {/* Dynamic Header/Navbar */}
+
       <nav className={cn(
         "max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between transition-all duration-700 ease-in-out z-50",
         result ? "sticky top-0" : "bg-transparent py-6"
@@ -278,14 +306,7 @@ export default function HomeContent() {
           <div className="pointer-events-auto">
             {(result || activeTab !== 'audit') ? (
               <div className="hidden md:flex bg-white/80 backdrop-blur-xl border border-slate-200/50 p-1.5 rounded-2xl shadow-sm items-center gap-1 animate-fade-in">
-                {[
-                  { id: 'audit', icon: LayoutDashboard, label: 'Audit', visible: true },
-                  { id: 'fix', icon: Zap, label: 'Fix Mode', fill: true, visible: !!result },
-                  { id: 'compare', icon: Scale, label: 'Compare', visible: !!result },
-                  { id: 'monitor', icon: Activity, label: 'Monitor', visible: true },
-                  { id: 'analytics', icon: PieChart, label: 'Analytics', visible: true },
-                  { id: 'history', icon: Clock, label: 'History', visible: true }
-                ].filter(tab => tab.visible).map((tab) => (
+                {tabs.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
@@ -391,7 +412,7 @@ export default function HomeContent() {
       {/* Results Mode Dashboard */}
       {
         (result || activeTab !== 'audit') && (
-          <section className="py-12 px-6">
+          <section className="py-12 px-6 pb-32 md:pb-12">
             <div className="max-w-7xl mx-auto">
               {/* Smooth Transition Wrapper */}
               <div key={activeTab} className="animate-fade-in w-full">
@@ -445,11 +466,16 @@ export default function HomeContent() {
                             </>
                           ) : (
                             <>
-                              <Zap size={16} fill="white" /> Fix Issues ($149)
+                              <Zap size={16} fill="white" /> Fix Issues ($99)
                             </>
                           )}
                         </button>
                       </div>
+                    </div>
+
+                    {/* Mobile-Only Score Card (Appears above Preview) */}
+                    <div className="lg:hidden animate-fade-in animate-delay-1">
+                      <ScoreAudit score={result.score} issues={result.issues} stats={result.stats} />
                     </div>
 
                     {/* Social Mockups */}
@@ -478,7 +504,7 @@ export default function HomeContent() {
                           />
                         </LockedFeature>
                       </div>
-                      <div className="lg:col-span-4 animate-fade-in animate-delay-3">
+                      <div className="hidden lg:block lg:col-span-4 animate-fade-in animate-delay-3">
                         <ScoreAudit score={result.score} issues={result.issues} stats={result.stats} />
                       </div>
                     </div>
@@ -489,6 +515,7 @@ export default function HomeContent() {
                     label="Upgrade to Benchmark"
                     onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
                     className="rounded-[2rem]"
+                    lockBody
                   >
                     <CompetitorBoard currentUrl={result.metadata.url} />
                   </LockedFeature>
@@ -498,6 +525,7 @@ export default function HomeContent() {
                     label="Unlock Daily Monitoring"
                     onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
                     className="rounded-[2rem]"
+                    lockBody
                   >
                     <Dashboard />
                   </LockedFeature>
@@ -507,6 +535,7 @@ export default function HomeContent() {
                     label="Unlock Analytics (Growth Plan)"
                     onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_GROWTH || process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
                     className="rounded-[2rem]"
+                    lockBody
                   >
                     <AnalyticsDashboard />
                   </LockedFeature>
@@ -519,23 +548,24 @@ export default function HomeContent() {
                         label="Unlock Remediation Studio"
                         onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
                         className="rounded-[2rem]"
+                        lockBody
                       >
                         {/* WRAPPED CONTENT OF FIX MODE */}
                         <div className="space-y-8">
                           {/* Pro Fix Header - Redesigned for minimal/premium feel */}
-                          <div className="bg-white border border-slate-200 p-8 rounded-[2rem] shadow-sm flex items-center justify-between">
+                          <div className="bg-white border border-slate-200 p-6 md:p-8 rounded-[2rem] shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                             <div className="flex items-center gap-4">
-                              <div className="p-3 bg-slate-100 text-slate-900 rounded-xl">
+                              <div className="p-3 bg-slate-100 text-slate-900 rounded-xl shrink-0">
                                 <Code size={24} />
                               </div>
-                              <div>
-                                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Remediation Studio</h2>
-                                <p className="text-slate-500 font-medium text-sm">Optimize assets for {result.metadata.hostname}</p>
+                              <div className="min-w-0">
+                                <h2 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight truncate">Remediation Studio</h2>
+                                <p className="text-slate-500 font-medium text-xs md:text-sm truncate">Optimize assets for {result.metadata.hostname}</p>
                               </div>
                             </div>
                             <button
                               onClick={() => setActiveTab('audit')}
-                              className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-900 transition-colors"
+                              className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-bold text-slate-500 bg-slate-50 md:bg-transparent rounded-xl md:rounded-lg hover:text-slate-900 hover:bg-slate-100 transition-colors"
                             >
                               Cancel
                             </button>
@@ -556,6 +586,7 @@ export default function HomeContent() {
                                 description={result.metadata.description || ''}
                                 image={result.metadata.ogImage || ''}
                                 url={result.metadata.url || ''}
+                                siteId={result.siteId}
                               />
                             </div>
 
@@ -574,6 +605,19 @@ export default function HomeContent() {
                                 url={result.metadata.url}
                               />
                             </div>
+                          </div>
+
+                          {/* Guardian Enrollment Section */}
+                          <div className="animate-fade-in-up delay-300">
+                            <GuardianEnrollment
+                              defaultUrl={result.metadata.url || ''}
+                              siteId={result.siteId || 'pp_demo'} // Pass the tracked site ID
+                              tier={isPaid ? 'Founder' : 'Free'}
+                              onUpgrade={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+                              onScansStart={() => {
+                                // Maybe notify user or just let the success screen handle it
+                              }}
+                            />
                           </div>
                         </div>
                       </LockedFeature>
@@ -872,8 +916,38 @@ export default function HomeContent() {
       <footer className="py-24 border-t border-slate-200 text-center text-slate-400 font-bold uppercase tracking-widest text-xs px-6">
         © 2025 Social Sight — Built for Speed, Optimized for Revenue.
       </footer>
+      {/* Mobile Bottom Navigation - "Tabs" */}
+      {(result || activeTab !== 'audit') && (
+        <div className="md:hidden fixed bottom-6 left-4 right-4 z-40 animate-slide-up-fade">
+          <div className="bg-slate-900/95 backdrop-blur-lg border border-white/10 p-1.5 rounded-2xl shadow-2xl flex items-center justify-around">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id as any);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={cn(
+                  "p-3 rounded-xl transition-all relative group flex flex-col items-center gap-1",
+                  activeTab === tab.id
+                    ? "text-white bg-white/10"
+                    : "text-slate-500 hover:text-slate-300"
+                )}
+              >
+                <tab.icon size={20} className={cn(
+                  "transition-transform",
+                  activeTab === tab.id && "scale-110",
+                  tab.fill && activeTab === tab.id && "fill-white"
+                )} />
+                {activeTab === tab.id && (
+                  <span className="absolute -bottom-1 w-1 h-1 bg-blue-500 rounded-full" />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
     </main >
   );
 }
-
-

@@ -6,9 +6,10 @@ interface MetaSnippetProps {
     description: string;
     image: string;
     url: string;
+    siteId?: string;
 }
 
-export default function MetaSnippet({ title, description, image, url }: MetaSnippetProps) {
+export default function MetaSnippet({ title, description, image, url, siteId = 'pp_demo' }: MetaSnippetProps) {
     const [copied, setCopied] = useState(false);
     const [smartTracking, setSmartTracking] = useState(false);
 
@@ -17,6 +18,10 @@ export default function MetaSnippet({ title, description, image, url }: MetaSnip
         : '';
 
     const finalUrl = `${url}${trackingParams}`;
+
+    // Generate Script Snippet
+    const scriptCode = `<!-- SocialSight Pixel -->
+<script src="${typeof window !== 'undefined' ? window.location.origin : ''}/pixel.js" data-id="${siteId}" async defer></script>`;
 
     const code = `<!-- Primary Meta Tags -->
 <title>${title}</title>
@@ -35,7 +40,9 @@ export default function MetaSnippet({ title, description, image, url }: MetaSnip
 <meta property="twitter:url" content="${finalUrl}">
 <meta property="twitter:title" content="${title}">
 <meta property="twitter:description" content="${description}">
-<meta property="twitter:image" content="${image}">`;
+<meta property="twitter:image" content="${image}">
+
+${scriptCode}`;
 
     const handleCopy = () => {
         navigator.clipboard.writeText(code);
@@ -45,20 +52,20 @@ export default function MetaSnippet({ title, description, image, url }: MetaSnip
 
     return (
         <div className="bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl transition-all duration-300">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/50">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:px-6 sm:py-4 border-b border-slate-800 bg-slate-900/50 gap-4">
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50" />
                         <div className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/50" />
                         <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/50" />
                     </div>
-                    <div className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-2 border-l border-slate-700/50 hidden sm:block">
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-2 border-l border-slate-700/50">
                         meta-tags.html
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer group">
+                <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 w-full sm:w-auto">
+                    <label className="flex items-center gap-2 cursor-pointer group select-none">
                         <div className={`w-8 h-4 rounded-full transition-colors relative ${smartTracking ? 'bg-blue-600' : 'bg-slate-700'}`}>
                             <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${smartTracking ? 'translate-x-4' : 'translate-x-0'}`} />
                         </div>
@@ -70,10 +77,10 @@ export default function MetaSnippet({ title, description, image, url }: MetaSnip
 
                     <button
                         onClick={handleCopy}
-                        className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white transition-colors pl-4 border-l border-slate-700"
+                        className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white transition-colors pl-3 border-l border-slate-700 active:scale-95 origin-center"
                     >
                         {copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
-                        {copied ? 'Copied!' : 'Copy Code'}
+                        {copied ? 'Copied' : 'Copy'}
                     </button>
                 </div>
             </div>

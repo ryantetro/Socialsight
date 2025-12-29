@@ -411,55 +411,59 @@ export default function AnalyticsDashboard() {
     // 2. List View (Default)
     if (view === 'list') {
         return (
-            <div className="animate-fade-in space-y-8">
-                <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm flex items-center justify-between">
-                    <div>
-                        <h2 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-                            <Activity className="text-slate-300" /> Analytics Engine
+            <div className="animate-fade-in space-y-6 md:space-y-8 pb-32">
+                <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-6 relative overflow-hidden">
+                    <div className="relative z-10">
+                        <h2 className="text-2xl md:text-3xl font-black text-slate-900 flex items-center gap-3">
+                            <Activity className="text-blue-600 shrink-0" /> Analytics Engine
                         </h2>
-                        <p className="text-slate-500 font-medium">Manage your connected sites and data sources.</p>
+                        <p className="text-slate-500 font-medium mt-1 text-sm md:text-base">Manage your connected sites and data sources.</p>
                     </div>
                     <button
                         onClick={handleStartSetup}
-                        className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-slate-900/10 active:scale-95"
+                        className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 active:scale-95 shrink-0"
                     >
                         <Plus size={18} /> Connect New Site
                     </button>
+
+                    {/* Background decoration */}
+                    <div className="hidden md:block absolute top-0 right-0 p-32 bg-slate-50 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
                 </div>
 
                 {isLoadingSites ? (
                     <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={32} /></div>
                 ) : sites.length === 0 ? (
                     // Empty State
-                    <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[3rem] p-12 md:p-20 text-center flex flex-col items-center justify-center min-h-[400px]">
-                        <div className="w-24 h-24 bg-white rounded-3xl shadow-xl shadow-blue-900/5 flex items-center justify-center mx-auto rotate-3 mb-8">
-                            <BarChart3 className="w-10 h-10 text-blue-600" />
+                    <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[3rem] p-8 md:p-20 text-center flex flex-col items-center justify-center min-h-[400px]">
+                        <div className="w-20 h-20 md:w-24 md:h-24 bg-white rounded-3xl shadow-xl shadow-blue-900/5 flex items-center justify-center mx-auto rotate-3 mb-6 md:mb-8">
+                            <BarChart3 className="w-8 h-8 md:w-10 md:h-10 text-blue-600" />
                         </div>
-                        <h3 className="text-2xl font-black text-slate-900 mb-2">Unlock Your Data</h3>
-                        <p className="text-slate-500 font-medium text-lg leading-relaxed max-w-md mx-auto mb-8">
+                        <h3 className="text-xl md:text-2xl font-black text-slate-900 mb-2">Unlock Your Data</h3>
+                        <p className="text-slate-500 font-medium text-base md:text-lg leading-relaxed max-w-md mx-auto mb-8">
                             Install our smart tracking pixel to see real-time social traffic, click-through rates, and conversion metrics.
                         </p>
                         <button
                             onClick={handleStartSetup}
-                            className="px-10 py-5 bg-blue-600 text-white rounded-2xl font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 active:scale-95 flex items-center gap-3"
+                            className="w-full md:w-auto px-10 py-5 bg-blue-600 text-white rounded-2xl font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-3"
                         >
                             <Zap className="fill-white" /> Connect Your Site
                         </button>
                     </div>
                 ) : (
                     // Grid of Sites
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {sites.map(site => (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                        {sites.map((site, i) => (
                             <div
                                 key={site.id}
                                 onClick={() => { setCurrentSite(site); setView('detail'); }}
-                                className="group bg-white rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-blue-900/5 transition-all cursor-pointer relative overflow-hidden"
+                                className="group bg-white rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-blue-900/5 transition-all cursor-pointer relative overflow-hidden animate-fade-in-up"
+                                style={{ animationDelay: `${i * 50}ms` }}
                             >
                                 <div className="absolute top-0 right-0 p-32 bg-slate-50 rounded-full blur-2xl -mr-16 -mt-16 transition-all group-hover:bg-blue-50/50 pointer-events-none" />
 
-                                <div className="p-8 relative z-10">
+                                <div className="p-6 md:p-8 relative z-10">
                                     <div className="flex items-start justify-between mb-6">
-                                        <div className="w-12 h-12 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-center overflow-hidden">
+                                        <div className="w-12 h-12 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
                                             {/* Using Google's favicon service for a quick "Opengraph-like" logo */}
                                             <img
                                                 src={`https://www.google.com/s2/favicons?domain=${site.domain}&sz=128`}
@@ -478,7 +482,7 @@ export default function AnalyticsDashboard() {
                                         </div>
                                     </div>
 
-                                    <h3 className="text-xl font-bold text-slate-900 mb-1 truncate">{site.domain}</h3>
+                                    <h3 className="text-lg md:text-xl font-bold text-slate-900 mb-1 truncate">{site.domain}</h3>
                                     <div className="flex items-center gap-2 mb-6">
                                         <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
                                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-green-600 transition-colors">
@@ -503,31 +507,31 @@ export default function AnalyticsDashboard() {
 
     // 3. Detail View (Dashboard)
     return (
-        <div className="space-y-8 animate-fade-in">
+        <div className="space-y-6 md:space-y-8 animate-fade-in pb-32">
             {/* Header / Nav */}
-            <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="flex items-center gap-4">
+            <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                <div className="flex items-center gap-4 w-full lg:w-auto">
                     <button
                         onClick={() => setView('list')}
-                        className="w-12 h-12 flex items-center justify-center rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-all"
+                        className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-all shrink-0"
                     >
-                        <ArrowLeft size={20} />
+                        <ArrowLeft size={18} />
                     </button>
-                    <div>
-                        <div className="flex items-center gap-3 mb-1">
-                            <div className="w-8 h-8 rounded-full bg-slate-100 p-1">
+                    <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 md:gap-3 mb-1">
+                            <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-100 p-1 shrink-0">
                                 <img
                                     src={`https://www.google.com/s2/favicons?domain=${currentSite?.domain}&sz=64`}
                                     alt="favicon"
                                     className="w-full h-full object-contain"
                                 />
                             </div>
-                            <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                            <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate">
                                 {currentSite?.domain}
                             </h2>
                         </div>
-                        <div className="flex items-center gap-2 text-slate-500 font-medium text-xs ml-11">
-                            <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1.5">
+                        <div className="flex items-center gap-2 text-slate-500 font-medium text-xs md:pl-11">
+                            <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1.5 shrink-0">
                                 <span className="relative flex h-2 w-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
@@ -535,17 +539,18 @@ export default function AnalyticsDashboard() {
                                 Live Data
                             </span>
                             <span className="text-slate-300">•</span>
-                            <span>Analytics Dashboard</span>
+                            <span className="truncate">Analytics Dashboard</span>
                         </div>
                     </div>
                 </div>
-                <div className="flex bg-slate-100 p-1 rounded-xl">
+
+                <div className="w-full lg:w-auto flex bg-slate-100 p-1 rounded-xl">
                     {['24h', '7d', '30d'].map((range) => (
                         <button
                             key={range}
                             onClick={() => setTimeRange(range)}
                             className={cn(
-                                "px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
+                                "flex-1 lg:flex-none px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all text-center",
                                 timeRange === range ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
                             )}
                         >
@@ -556,21 +561,22 @@ export default function AnalyticsDashboard() {
             </div>
 
             {/* Smart Link Builder using current Site */}
-            <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden relative">
+            <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden relative">
                 <div className="absolute top-0 right-0 p-32 bg-indigo-500/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
 
-                <div className="flex flex-col lg:flex-row items-center justify-between gap-8 relative z-10">
+                <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-8 relative z-10">
                     <div className="space-y-2 max-w-lg">
-                        <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <h3 className="text-lg md:text-xl font-bold text-slate-900 flex items-center gap-2">
                             <Share2 className="text-indigo-600" size={20} /> Smart Link Builder
                         </h3>
                         <p className="text-slate-500 font-medium text-sm">
-                            Don't lose data to "Dark Social". Generate a smart link for the platform you are sharing on to track it properly.
+                            Generate a smart link for the platform you are sharing on to track it properly.
                         </p>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
-                        <div className="flex bg-slate-100 p-1 rounded-xl">
+                    <div className="flex flex-col gap-4 w-full xl:w-auto">
+                        {/* Mobile Grid / Desktop Flex */}
+                        <div className="grid grid-cols-2 sm:flex bg-slate-100 p-1 rounded-xl w-full">
                             {[
                                 { id: 'imessage', icon: MessageCircle, label: 'iMessage' },
                                 { id: 'whatsapp', icon: Smartphone, label: 'WhatsApp' },
@@ -581,7 +587,7 @@ export default function AnalyticsDashboard() {
                                     key={p.id}
                                     onClick={() => setLinkBuilderPlatform(p.id)}
                                     className={cn(
-                                        "px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all",
+                                        "px-3 md:px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all",
                                         linkBuilderPlatform === p.id
                                             ? "bg-white text-indigo-600 shadow-sm"
                                             : "text-slate-500 hover:text-slate-900"
@@ -589,20 +595,20 @@ export default function AnalyticsDashboard() {
                                     title={p.label}
                                 >
                                     <p.icon size={16} />
-                                    <span className="hidden md:inline">{p.label}</span>
+                                    <span className="inline">{p.label}</span>
                                 </button>
                             ))}
                         </div>
 
-                        <div className="flex items-center gap-2 w-full sm:w-auto">
-                            <code className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 text-sm font-mono flex-1 sm:flex-none">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full">
+                            <code className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 text-xs md:text-sm font-mono flex-1 overflow-x-auto whitespace-nowrap scrollbar-hide">
                                 ?utm_source={linkBuilderPlatform}
                             </code>
                             <button
                                 onClick={handleCopyLink}
                                 className={cn(
-                                    "px-4 py-3 rounded-xl font-bold text-sm text-white transition-all flex items-center gap-2 whitespace-nowrap",
-                                    linkCopied ? "bg-green-500" : "bg-slate-900 hover:bg-black"
+                                    "px-4 py-3 rounded-xl font-bold text-sm text-white transition-all flex items-center justify-center gap-2 whitespace-nowrap shadow-lg active:scale-95",
+                                    linkCopied ? "bg-green-500 shadow-green-500/20" : "bg-slate-900 hover:bg-black shadow-slate-900/20"
                                 )}
                             >
                                 {linkCopied ? <Check size={16} /> : <Copy size={16} />}
@@ -614,48 +620,48 @@ export default function AnalyticsDashboard() {
             </div>
 
             {/* The Big Three Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-slate-900 text-white p-8 rounded-3xl relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-32 bg-blue-500/10 rounded-full blur-3xl -mr-16 -mt-16 transition-all group-hover:bg-blue-500/20" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                <div className="bg-slate-900 text-white p-6 md:p-8 rounded-3xl relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-24 md:p-32 bg-blue-500/10 rounded-full blur-3xl -mr-10 -mt-10 md:-mr-16 md:-mt-16 transition-all group-hover:bg-blue-500/20" />
                     <div className="relative z-10">
-                        <div className="flex items-center gap-3 mb-4 text-slate-400 font-bold uppercase tracking-widest text-xs">
-                            <Eye size={16} /> Total Impressions
+                        <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4 text-slate-400 font-bold uppercase tracking-widest text-[10px] md:text-xs">
+                            <Eye size={14} /> Total Impressions
                         </div>
-                        <div className="text-5xl font-black tracking-tight mb-2">
+                        <div className="text-4xl md:text-5xl font-black tracking-tight mb-2">
                             {(totals.impressions / 1000).toFixed(1)}k
                         </div>
-                        <div className="flex items-center gap-2 text-green-400 font-bold text-sm">
-                            <ArrowUpRight size={16} /> Live Tracking
+                        <div className="flex items-center gap-2 text-green-400 font-bold text-xs md:text-sm">
+                            <ArrowUpRight size={14} /> Live Tracking
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-32 bg-green-500/5 rounded-full blur-3xl -mr-16 -mt-16 transition-all group-hover:bg-green-500/10" />
+                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-24 md:p-32 bg-green-500/5 rounded-full blur-3xl -mr-10 -mt-10 md:-mr-16 md:-mt-16 transition-all group-hover:bg-green-500/10" />
                     <div className="relative z-10">
-                        <div className="flex items-center gap-3 mb-4 text-slate-400 font-bold uppercase tracking-widest text-xs">
-                            <MousePointer2 size={16} /> Unique Clicks
+                        <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4 text-slate-400 font-bold uppercase tracking-widest text-[10px] md:text-xs">
+                            <MousePointer2 size={14} /> Unique Clicks
                         </div>
-                        <div className="text-5xl font-black tracking-tight mb-2 text-slate-900">
+                        <div className="text-4xl md:text-5xl font-black tracking-tight mb-2 text-slate-900">
                             {totals.clicks.toLocaleString()}
                         </div>
-                        <div className="flex items-center gap-2 text-green-600 font-bold text-sm">
-                            <ArrowUpRight size={16} /> Tracking Active
+                        <div className="flex items-center gap-2 text-green-600 font-bold text-xs md:text-sm">
+                            <ArrowUpRight size={14} /> Tracking Active
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-32 bg-purple-500/5 rounded-full blur-3xl -mr-16 -mt-16 transition-all group-hover:bg-purple-500/10" />
+                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-24 md:p-32 bg-purple-500/5 rounded-full blur-3xl -mr-10 -mt-10 md:-mr-16 md:-mt-16 transition-all group-hover:bg-purple-500/10" />
                     <div className="relative z-10">
-                        <div className="flex items-center gap-3 mb-4 text-slate-400 font-bold uppercase tracking-widest text-xs">
-                            <TrendingUp size={16} /> Avg. CTR
+                        <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4 text-slate-400 font-bold uppercase tracking-widest text-[10px] md:text-xs">
+                            <TrendingUp size={14} /> Avg. CTR
                         </div>
-                        <div className="text-5xl font-black tracking-tight mb-2 text-slate-900">
+                        <div className="text-4xl md:text-5xl font-black tracking-tight mb-2 text-slate-900">
                             {totals.ctr.toFixed(1)}%
                         </div>
-                        <div className="flex items-center gap-2 text-slate-400 font-bold text-sm">
-                            <div className="flex items-center gap-2 text-slate-400 font-bold text-sm">
+                        <div className="flex items-center gap-2 text-slate-400 font-bold text-xs md:text-sm">
+                            <div className="flex items-center gap-2 text-slate-400 font-bold text-xs md:text-sm">
                                 <span className="text-slate-300">Based on unique visits</span>
                             </div>
                         </div>
@@ -663,13 +669,21 @@ export default function AnalyticsDashboard() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
                 {/* Main Area Chart */}
-                <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
-                    <h3 className="text-xl font-bold text-slate-900 mb-8">Performance History</h3>
-                    <div className="h-[300px] w-full">
+                <div className="lg:col-span-2 bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-200 shadow-sm relative overflow-hidden">
+                    <div className="flex items-center justify-between mb-8">
+                        <h3 className="text-xl font-bold text-slate-900">Performance History</h3>
+                        {/* Legend / Status */}
+                        <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Impressions</span>
+                        </div>
+                    </div>
+
+                    <div className="h-[250px] md:h-[300px] w-full md:ml-0">
                         <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={stats}>
+                            <AreaChart data={stats} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
@@ -677,13 +691,33 @@ export default function AnalyticsDashboard() {
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} dy={10} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                                <XAxis
+                                    dataKey="name"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                                    dy={10}
+                                    interval="preserveStartEnd"
+                                />
+                                <YAxis
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                                    width={30}
+                                />
                                 <Tooltip
                                     contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.1)' }}
                                     cursor={{ stroke: '#3b82f6', strokeWidth: 2 }}
                                 />
-                                <Area type="monotone" dataKey="impressions" stroke="#3b82f6" strokeWidth={4} fillOpacity={1} fill="url(#colorImpressions)" />
+                                <Area
+                                    type="monotone"
+                                    dataKey="impressions"
+                                    stroke="#3b82f6"
+                                    strokeWidth={3}
+                                    fillOpacity={1}
+                                    fill="url(#colorImpressions)"
+                                    animationDuration={1500}
+                                />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
@@ -691,7 +725,7 @@ export default function AnalyticsDashboard() {
 
                 {/* Platform Breakdown & Live Feed */}
                 <div className="space-y-6">
-                    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                    <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
                         <h3 className="text-xl font-bold text-slate-900 mb-6">Traffic Sources</h3>
                         <div className="space-y-4">
                             {topSources.length > 0 ? topSources.map((p, i) => {
@@ -716,29 +750,35 @@ export default function AnalyticsDashboard() {
                         </div>
                     </div>
 
-                    <div className="bg-zinc-950 p-6 rounded-[2rem] text-white overflow-hidden relative min-h-[200px]">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold flex items-center gap-2 text-sm uppercase tracking-widest text-zinc-500">
+                    <div className="bg-zinc-950 p-6 rounded-[2rem] text-white overflow-hidden relative min-h-[200px] shadow-xl shadow-zinc-900/20">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="font-bold flex items-center gap-2 text-xs uppercase tracking-widest text-zinc-500">
                                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /> Live Feed
                             </h3>
+                            <span className="text-[10px] font-bold bg-zinc-900 px-2 py-1 rounded-full text-zinc-600">Real-time</span>
                         </div>
-                        <div className="space-y-4">
+                        <div className="space-y-4 relative z-10">
                             {events.map((item, i) => (
-                                <div key={item.timestamp + i} className="flex items-center gap-3 text-sm animate-in slide-in-from-right-4 fade-in duration-500">
-                                    <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center font-black text-xs">
+                                <div key={item.timestamp + i} className="flex items-center gap-3 text-sm animate-fade-in-up" style={{ animationDelay: `${i * 100}ms` }}>
+                                    <div className="w-8 h-8 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center font-black text-xs shrink-0">
                                         {item.platform[0]}
                                     </div>
-                                    <div>
-                                        <span className="font-bold text-zinc-300">{item.platform}Bot</span>
-                                        <span className="text-zinc-500"> {item.action}</span>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-baseline justify-between">
+                                            <span className="font-bold text-zinc-200 truncate">{item.platform}Bot</span>
+                                            <span className="text-[10px] text-zinc-600 font-mono shrink-0 ml-2">{item.time}</span>
+                                        </div>
+                                        <div className="text-zinc-500 text-xs truncate">{item.action}</div>
                                     </div>
-                                    <div className="ml-auto text-xs text-zinc-600 font-mono">{item.time}</div>
                                 </div>
                             ))}
                             {events.length === 0 && (
-                                <div className="text-zinc-600 text-xs text-center py-4 italic">Waiting for traffic...</div>
+                                <div className="text-zinc-600 text-xs text-center py-8 italic">Waiting for traffic...</div>
                             )}
                         </div>
+
+                        {/* Overlay Gradient at bottom */}
+                        <div className="absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-zinc-950 to-transparent pointer-events-none" />
                     </div>
                 </div>
             </div>

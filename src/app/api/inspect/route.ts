@@ -80,13 +80,38 @@ export async function POST(req: NextRequest) {
 
         const finalScore = Math.max(0, score);
 
-        // Record stats asynchronously (fire and forget to not block response? No, usually we want the stats back)
-        // But initializing Supabase server client is fast.
+        // Record stats asynchronously
         const { createClient } = await import('@/lib/supabase/server');
         const supabase = await createClient();
         const stats = await recordScore(finalScore, url, supabase);
 
-        return NextResponse.json({ metadata, score: finalScore, issues, stats });
+        // Get/Create Site ID for tracking
+        // We use MD5 or deterministic UUID usually, or lookup by domain
+        let siteId = 'pp_' + Math.random().toString(36).substr(2, 9); // Fallback
+
+        try {
+            // Check if site exists
+            const { data: existingSite } = await supabase
+                .from('analytics_sites')
+                .select('id')
+                .eq('domain', urlObj.hostname)
+                .single();
+
+            if (existingSite) {
+                siteId = existingSite.id;
+            } else {
+                // Create new site
+                siteId = 'pp_' + Math.random().toString(36).substr(2, 9);
+                await supabase.from('analytics_sites').insert({
+                    id: siteId,
+                    domain: urlObj.hostname
+                });
+            }
+        } catch (e) {
+            console.error('Error fetching site ID:', e);
+        }
+
+        return NextResponse.json({ metadata, score: finalScore, issues, stats, siteId });
     } catch (error: unknown) {
         if (error instanceof Error) {
             console.error('Scraping error:', error.message);
