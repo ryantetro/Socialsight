@@ -4,93 +4,124 @@ import { useState } from 'react';
 import { Search, Loader2, AlertCircle } from 'lucide-react';
 import { InspectionResult } from '@/types';
 import { cn } from '@/lib/utils';
+import { useScrape } from '@/hooks/useScrape';
 
 interface ScraperFormProps {
     onResult: (data: InspectionResult) => void;
     variant?: 'hero' | 'compact';
+    limitReached?: boolean;
+    align?: 'left' | 'right';
 }
 
-export default function ScraperForm({ onResult, variant = 'hero' }: ScraperFormProps) {
+export default function ScraperForm({ onResult, variant = 'hero', limitReached = false, align = 'right' }: ScraperFormProps) {
     const [url, setUrl] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [isOpen, setIsOpen] = useState(false);
+    const { loading, error, scrape } = useScrape();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError(null);
 
-        let targetUrl = url.trim();
-        if (!targetUrl) {
-            setError("Please enter a URL to audit.");
-            return;
-        }
+        if (limitReached) return;
 
-        // Auto-prepend https if protocol is missing
-        if (!/^https?:\/\//i.test(targetUrl)) {
-            targetUrl = `https://${targetUrl}`;
-        }
-
-        // Basic URL validation
-        try {
-            new URL(targetUrl);
-        } catch {
-            setError("That doesn't look like a valid URL.");
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const response = await fetch('/api/inspect', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: targetUrl }),
-            });
-
-            if (!response.ok) {
-                throw new Error("Failed to reach the website. Is it online?");
-            }
-
-            const data = await response.json();
-            if (data.error) {
-                throw new Error(data.error);
-            }
-
+        const data = await scrape(url);
+        if (data) {
             onResult(data);
-            if (variant === 'compact') setUrl(''); // Clear on success only for compact
-        } catch (err: any) {
-            setError(err.message || "Something went wrong. Try again.");
-        } finally {
-            setLoading(false);
+            setUrl('');
+            setIsOpen(false);
         }
     };
 
     const isCompact = variant === 'compact';
 
+    if (isCompact) {
+        return (
+            <div className="relative font-sans">
+                <button
+                    onClick={() => !limitReached && setIsOpen(!isOpen)}
+                    className={cn(
+                        "px-5 md:px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95 whitespace-nowrap flex items-center gap-2",
+                        isOpen && "ring-4 ring-blue-500/20 bg-blue-700",
+                        limitReached && "opacity-50 cursor-not-allowed bg-slate-400 hover:bg-slate-400 shadow-none pointer-events-none"
+                    )}
+                >
+                    <Search className="w-4 h-4" />
+                    <span>{limitReached ? "Daily Limit Reached" : "Scan New URL"}</span>
+                </button>
+
+                {isOpen && (
+                    <div className={cn(
+                        "absolute top-full mt-3 w-full md:w-[450px] z-50 animate-in fade-in zoom-in-95 duration-200 ease-out",
+                        align === 'right' ? "right-0 origin-top-right" : "left-0 origin-top-left"
+                    )}>
+                        {/* Overlay to close on click outside */}
+                        <div className="fixed inset-0 z-0 h-screen w-screen cursor-default" onClick={() => setIsOpen(false)} />
+
+                        <div className="relative z-10 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xl shadow-blue-900/10 flex items-center gap-2 ring-4 ring-slate-50">
+                            <form onSubmit={handleSubmit} className="flex-1 flex items-center gap-2">
+                                <input
+                                    type="text"
+                                    placeholder="Enter website URL..."
+                                    autoFocus
+                                    value={url}
+                                    onChange={(e) => setUrl(e.target.value)}
+                                    className={cn(
+                                        "flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 transition-all font-medium text-slate-800 placeholder:text-slate-400",
+                                        error && "border-red-300 bg-red-50"
+                                    )}
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition-colors disabled:opacity-50 flex items-center gap-2 shrink-0 shadow-md shadow-blue-500/20"
+                                >
+                                    {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Scan"}
+                                </button>
+                            </form>
+                            <button
+                                onClick={() => setIsOpen(false)}
+                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                                <span className="sr-only">Close</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+                            </button>
+
+                            {/* Error Popover */}
+                            {error && (
+                                <div className="absolute top-full mt-2 left-0 right-0 bg-red-50 text-red-600 text-[10px] font-bold px-3 py-2 rounded-lg border border-red-100 flex items-center gap-2 shadow-lg mb-2">
+                                    <AlertCircle className="w-3 h-3" /> {error}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     return (
-        <div className={cn("w-full transition-all duration-500 relative", !isCompact ? "max-w-2xl mx-auto" : "max-w-3xl")}>
+        <div className="w-full max-w-2xl mx-auto transition-all duration-500 relative">
             <form onSubmit={handleSubmit} className="relative group">
                 <input
+                    id="url-input"
                     type="text"
-                    placeholder="e.g. yoursite.com"
+                    placeholder={limitReached ? "Daily limit reached." : "e.g. yoursite.com"}
                     value={url}
+                    disabled={limitReached}
                     onChange={(e) => {
                         setUrl(e.target.value);
-                        if (error) setError(null);
                     }}
                     className={cn(
-                        "w-full rounded-2xl border-2 outline-none transition-all",
+                        "w-full rounded-2xl border-2 outline-none transition-all px-6 py-5 text-xs md:text-lg focus:ring-4 focus:ring-blue-500/10 shadow-xl shadow-blue-500/5 bg-white",
                         error ? "border-red-400 focus:border-red-500 bg-red-50/30" : "border-slate-200 focus:border-blue-500",
-                        isCompact
-                            ? "pl-5 pr-24 py-3 text-sm bg-white"
-                            : "px-6 py-5 text-lg focus:ring-4 focus:ring-blue-500/10 shadow-xl shadow-blue-500/5 bg-white"
+                        limitReached && "bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200"
                     )}
                 />
                 <button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || limitReached}
                     className={cn(
-                        "absolute right-1.5 top-1.5 bottom-1.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:bg-blue-400 transition-all flex items-center justify-center gap-2",
-                        isCompact ? "px-4 text-xs" : "px-6"
+                        "absolute right-1.5 top-1.5 bottom-1.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:bg-blue-400 transition-all flex items-center justify-center gap-2 px-2 md:px-6 text-xs md:text-base",
+                        limitReached && "bg-slate-400 hover:bg-slate-400"
                     )}
                 >
                     {loading ? (
@@ -99,7 +130,7 @@ export default function ScraperForm({ onResult, variant = 'hero' }: ScraperFormP
                         <Search className="w-4 h-4" />
                     )}
                     <span className={cn(loading && "animate-pulse")}>
-                        {loading ? "Scanning..." : isCompact ? "Scan" : "Audit URL"}
+                        {loading ? "Scanning..." : limitReached ? "Limit Reached" : "Audit URL"}
                     </span>
                 </button>
             </form>
@@ -115,9 +146,14 @@ export default function ScraperForm({ onResult, variant = 'hero' }: ScraperFormP
                 </div>
             </div>
 
-            {!isCompact && !error && (
+            {!error && !limitReached && (
                 <p className="mt-4 text-slate-400 text-sm text-center font-medium">
                     Analyze any URL to reveal and fix social sharing leaks.
+                </p>
+            )}
+            {limitReached && (
+                <p className="mt-4 text-red-500 text-sm text-center font-bold animate-pulse">
+                    You have reached your daily limit of 3 free scans.
                 </p>
             )}
         </div>

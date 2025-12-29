@@ -1,11 +1,14 @@
 import { Twitter, Linkedin, Facebook, MessageSquare, ImageOff } from 'lucide-react';
 import { Metadata } from '@/types';
+import LockedFeature from './LockedFeature';
 
 interface PreviewProps {
     metadata: Metadata;
+    isPaid?: boolean;
+    onUnlock?: () => void;
 }
 
-export default function SocialPreviews({ metadata }: PreviewProps) {
+export default function SocialPreviews({ metadata, isPaid = false, onUnlock }: PreviewProps) {
     const { title, description, ogImage, twitterImage, ogTitle, ogDescription, hostname } = metadata;
     const image = ogImage || twitterImage;
     const displayTitle = ogTitle || title || 'No Title Found';
@@ -21,7 +24,7 @@ export default function SocialPreviews({ metadata }: PreviewProps) {
 
     return (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in animate-delay-2">
-            {/* Twitter Card */}
+            {/* Twitter Card - ALWAYS VISIBLE */}
             <div className="space-y-3">
                 <div className="flex items-center gap-2 text-slate-400 font-semibold text-xs uppercase tracking-wider">
                     <Twitter className="w-4 h-4" />
@@ -43,7 +46,41 @@ export default function SocialPreviews({ metadata }: PreviewProps) {
                 </div>
             </div>
 
-            {/* LinkedIn Card */}
+            {/* Locked Group for Free Users */}
+            <div className="contents relative">
+                {/* This div is 'contents' so its children sit on the grid, 
+                   BUT we actually need to wrap the CHILDREN in the lock.
+                   
+                   Better approach: Render the other 3 cards, but if !isPaid, 
+                   we wrap them in a fragment that is somehow covered?
+                   
+                   Actually, LockedFeature expects children. If we wrap multiple grid items, 
+                   LockedFeature needs to span multiple columns. 
+               */}
+
+                {isPaid ? (
+                    <>
+                        <LinkedInCard />
+                        <FacebookCard />
+                        <IMessageCard />
+                    </>
+                ) : (
+                    <div className="col-span-1 sm:col-span-1 lg:col-span-3 h-full">
+                        <LockedFeature isLocked={true} onUnlock={onUnlock} className="h-full w-full rounded-2xl">
+                            <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+                                <LinkedInCard />
+                                <FacebookCard />
+                                <IMessageCard />
+                            </div>
+                        </LockedFeature>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
+    function LinkedInCard() {
+        return (
             <div className="space-y-3">
                 <div className="flex items-center gap-2 text-slate-400 font-semibold text-xs uppercase tracking-wider">
                     <Linkedin className="w-4 h-4" />
@@ -63,8 +100,11 @@ export default function SocialPreviews({ metadata }: PreviewProps) {
                     </div>
                 </div>
             </div>
+        )
+    }
 
-            {/* Facebook Card */}
+    function FacebookCard() {
+        return (
             <div className="space-y-3">
                 <div className="flex items-center gap-2 text-slate-400 font-semibold text-xs uppercase tracking-wider">
                     <Facebook className="w-4 h-4" />
@@ -85,8 +125,11 @@ export default function SocialPreviews({ metadata }: PreviewProps) {
                     </div>
                 </div>
             </div>
+        )
+    }
 
-            {/* iMessage / SMS Card */}
+    function IMessageCard() {
+        return (
             <div className="space-y-3">
                 <div className="flex items-center gap-2 text-slate-400 font-semibold text-xs uppercase tracking-wider">
                     <MessageSquare className="w-4 h-4" />
@@ -113,6 +156,6 @@ export default function SocialPreviews({ metadata }: PreviewProps) {
                     </div>
                 </div>
             </div>
-        </div>
-    );
+        )
+    }
 }

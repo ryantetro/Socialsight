@@ -1,3 +1,5 @@
+"use client";
+
 import { AlertCircle, CheckCircle2, Info, ArrowRight, Zap, TrendingUp, Users } from 'lucide-react';
 import { AuditIssue } from '@/types';
 import { cn } from '@/lib/utils';
@@ -22,6 +24,29 @@ export default function ScoreAudit({ score, issues, stats }: ScoreAuditProps) {
         if (s >= 90) return 'Excellent';
         if (s >= 70) return 'Good';
         return 'Needs Attention';
+    };
+
+    const handleCheckout = async () => {
+        const priceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD;
+        if (!priceId) return;
+        try {
+            const res = await fetch('/api/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ priceId })
+            });
+
+            if (res.status === 401) {
+                window.location.href = '/login';
+                return;
+            }
+
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            if (data.url) window.location.href = data.url;
+        } catch (e) {
+            console.error("Checkout Failed", e);
+        }
     };
 
     const strokeDasharray = 2 * Math.PI * 45;
@@ -137,10 +162,12 @@ export default function ScoreAudit({ score, issues, stats }: ScoreAuditProps) {
 
             {/* High-Value CTA */}
             <div className="mt-8 pt-8 border-t border-slate-100">
-                <button className="w-full bg-slate-900 hover:bg-black text-white p-5 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-slate-200 group/btn overflow-hidden relative">
+                <button
+                    onClick={handleCheckout}
+                    className="w-full bg-slate-900 hover:bg-black text-white p-5 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-slate-200 group/btn overflow-hidden relative">
                     <div className="absolute inset-0 bg-blue-600 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300" />
                     <Zap className="w-4 h-4 relative z-10 fill-amber-400 text-amber-400 group-hover/btn:scale-110 transition-transform" />
-                    <span className="relative z-10">Fix All Issues Instantly ($9)</span>
+                    <span className="relative z-10">Fix All Issues Instantly ($149)</span>
                     <ArrowRight className="w-4 h-4 relative z-10 group-hover/btn:translate-x-1 transition-transform" />
                 </button>
                 <p className="text-center text-[10px] text-slate-400 mt-4 font-bold uppercase tracking-widest">

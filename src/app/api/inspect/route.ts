@@ -79,7 +79,12 @@ export async function POST(req: NextRequest) {
         }
 
         const finalScore = Math.max(0, score);
-        const stats = recordScore(finalScore);
+
+        // Record stats asynchronously (fire and forget to not block response? No, usually we want the stats back)
+        // But initializing Supabase server client is fast.
+        const { createClient } = await import('@/lib/supabase/server');
+        const supabase = await createClient();
+        const stats = await recordScore(finalScore, url, supabase);
 
         return NextResponse.json({ metadata, score: finalScore, issues, stats });
     } catch (error: unknown) {

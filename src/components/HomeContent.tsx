@@ -1,0 +1,879 @@
+
+"use client";
+
+import { useState, useCallback, Suspense, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import ScraperForm from '@/components/ScraperForm';
+import SocialPreviews from '@/components/SocialPreviews';
+import ScoreAudit from '@/components/ScoreAudit';
+import AISuggestions from '@/components/AISuggestions';
+import MetaSnippet from '@/components/MetaSnippet';
+import ImageStudio from '@/components/ImageStudio';
+import CompetitorBoard from '@/components/CompetitorBoard';
+import Dashboard from '@/components/Dashboard';
+import AnalyticsDashboard from '@/components/AnalyticsDashboard';
+import ScanHistory from '@/components/ScanHistory';
+import { Share2, Zap, Shield, BarChart3, ArrowLeft, LayoutDashboard, Code, Image as ImageIcon, Scale, Activity, PieChart, CheckCircle2, Lock, Clock } from 'lucide-react';
+import { InspectionResult } from '@/types';
+import { cn } from '@/lib/utils';
+import PlanPill from '@/components/PlanPill';
+import LockedFeature from '@/components/LockedFeature';
+
+import { useProfile } from '@/hooks/useProfile';
+
+import { createClient } from '@/lib/supabase/client';
+import DebugPlanSwitcher from '@/components/DebugPlanSwitcher';
+import UserNav from '@/components/UserNav';
+
+
+export default function HomeContent() {
+  const [result, setResult] = useState<InspectionResult | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [activeTab, setActiveTab] = useState<'audit' | 'fix' | 'compare' | 'monitor' | 'analytics' | 'history'>('audit');
+
+
+  const [debugTier, setDebugTier] = useState<{ active: boolean, tier: any }>({ active: false, tier: 'free' });
+
+  const { user: realUser, profile, loading: authLoading, isPaid: realIsPaid, permissions: realPermissions } = useProfile();
+
+  // Handle Debug Overrides
+  const isDebugSignedOut = debugTier.active && debugTier.tier === 'signed-out';
+  const user = isDebugSignedOut ? null : realUser;
+
+  // Use debug tier if active, otherwise fallback to real profile tier
+  const effectiveTier = debugTier.active
+    ? (isDebugSignedOut ? 'free' : debugTier.tier)
+    : (profile?.tier || 'free');
+
+  // Recalculate permissions based on effective tier
+  const permissions = {
+    canMonitor: effectiveTier !== 'free' && !isDebugSignedOut,
+    canBenchmark: effectiveTier !== 'free' && !isDebugSignedOut,
+    canAnalyze: (effectiveTier === 'growth' || effectiveTier === 'agency') && !isDebugSignedOut,
+    canFix: effectiveTier !== 'free' && !isDebugSignedOut,
+    canRemoveBranding: effectiveTier === 'agency' && !isDebugSignedOut,
+    dailyLimit: effectiveTier === 'free' ? 3 : Infinity
+  };
+
+  const isPaid = effectiveTier !== 'free' && !isDebugSignedOut;
+
+  const [scanCount, setScanCount] = useState(0);
+
+  const searchParams = useSearchParams();
+  const scanId = searchParams.get('scanId');
+
+  useEffect(() => {
+    const view = searchParams.get('view');
+    if (view === 'history') {
+      setActiveTab('history');
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    // Check daily scan limit
+    const saved = localStorage.getItem('daily_scans');
+    if (saved) {
+      const { date, count } = JSON.parse(saved);
+      const today = new Date().toISOString().split('T')[0];
+      if (date === today) {
+        setScanCount(count);
+      } else {
+        localStorage.setItem('daily_scans', JSON.stringify({ date: today, count: 0 }));
+        setScanCount(0);
+      }
+    }
+  }, []);
+
+  // Load scan from ID if provided
+  useEffect(() => {
+    const loadScan = async () => {
+      if (!scanId || result) return; // Don't reload if we already have a result or no ID
+
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('scans')
+        .select('result')
+        .eq('id', scanId)
+        .single();
+
+      if (data && data.result) {
+        setResult(data.result as InspectionResult);
+        // Optional: Remove query param so refreshing doesn't stick? 
+        // Or keep it for shareability (if we allowed sharing).
+      } else if (error) {
+        console.error("Error loading scan:", error);
+        // Could redirect or toast here
+      }
+    };
+
+    loadScan();
+  }, [scanId]);
+
+  const incrementScan = () => {
+    const newCount = scanCount + 1;
+    setScanCount(newCount);
+    localStorage.setItem('daily_scans', JSON.stringify({
+      date: new Date().toISOString().split('T')[0],
+      count: newCount
+    }));
+  };
+
+  const isLimitReached = permissions ? scanCount >= permissions.dailyLimit : false;
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.reload();
+  };
+
+  const handleResult = (data: InspectionResult) => {
+    setIsTransitioning(true);
+    setTimeout(async () => {
+      setResult(data);
+      // Save result for restoration
+      localStorage.setItem('last_scan_result', JSON.stringify(data));
+
+      // Save to Database if logged in
+      if (user) {
+        const supabase = createClient();
+        await supabase.from('scans').insert({
+          user_id: user.id,
+          url: data.metadata.url || 'unknown',
+          result: data
+        });
+      }
+
+      setActiveTab('audit');
+      setIsTransitioning(false);
+      incrementScan();
+    }, 300);
+  };
+
+  const handleViewReport = async () => {
+    // 1. If we already have a result, just scroll to it
+    if (result) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    // 2. Try to restore from Database (if logged in)
+    if (user) {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('scans')
+        .select('result')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (data && data.result) {
+        setResult(data.result as InspectionResult);
+        setActiveTab('audit');
+        return;
+      }
+    }
+
+    // 3. Try to restore from localStorage
+    const saved = localStorage.getItem('last_scan_result');
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        setResult(data);
+        setActiveTab('audit');
+      } catch (e) {
+        console.error("Failed to restore result", e);
+      }
+    } else {
+      // Optional: Alert user if no history
+      alert("No recent scan found.");
+    }
+  };
+
+  const reset = () => {
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setResult(null);
+      setActiveTab('audit');
+      setIsTransitioning(false);
+    }, 300);
+  };
+
+  const handleCheckout = async (priceId: string | undefined) => {
+    if (!user) {
+      window.location.href = '/login?priceId=' + priceId;
+      return;
+    }
+
+    if (!priceId) {
+      alert("Configuration Error: Price ID missing");
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceId })
+      });
+
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      if (data.url) window.location.href = data.url;
+    } catch (e) {
+      console.error("Checkout Failed", e);
+      alert("Checkout Failed: " + (e instanceof Error ? e.message : "Unknown Error"));
+    }
+  };
+
+
+
+  return (
+    <main className="min-h-screen bg-[#fafafa]">
+
+      <DebugPlanSwitcher
+        currentTier={effectiveTier}
+        onTierChange={(tier) => setDebugTier({ active: true, tier })}
+      />
+
+      {/* Dynamic Header/Navbar */}
+      <nav className={cn(
+        "max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between transition-all duration-700 ease-in-out z-50",
+        result ? "sticky top-0" : "bg-transparent py-6"
+      )}>
+
+        {/* SECTION 1: Logo & Scan */}
+        <div className="flex items-center gap-4 min-w-0 shrink-0 z-20 md:flex-1">
+          <div
+            onClick={reset}
+            className="flex items-center gap-2 font-black text-2xl tracking-tighter cursor-pointer group shrink-0"
+          >
+            <div className="bg-blue-600 text-white w-10 h-10 flex items-center justify-center rounded-full group-hover:scale-110 transition-transform shadow-lg shadow-blue-500/20 z-10 relative">
+              <span className="text-lg font-black italic">S</span>
+            </div>
+
+            {/* Animated Logo Text */}
+            <div className={cn(
+              "overflow-hidden transition-all duration-700 ease-in-out flex flex-col justify-center",
+              result ? "max-w-0 opacity-0" : "max-w-[200px] opacity-100"
+            )}>
+              <span className="hidden lg:inline whitespace-nowrap">Social<span className="text-blue-600">Sight</span></span>
+            </div>
+          </div>
+
+          {result && (
+            <div className="hidden lg:block animate-fade-in">
+              <ScraperForm onResult={handleResult} variant="compact" limitReached={isLimitReached} align="left" />
+            </div>
+          )}
+        </div>
+
+        {/* SECTION 2: Center Navigation (Tabs or Links) */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex justify-center z-30 w-full pointer-events-none">
+          <div className="pointer-events-auto">
+            {(result || activeTab !== 'audit') ? (
+              <div className="hidden md:flex bg-white/80 backdrop-blur-xl border border-slate-200/50 p-1.5 rounded-2xl shadow-sm items-center gap-1 animate-fade-in">
+                {[
+                  { id: 'audit', icon: LayoutDashboard, label: 'Audit', visible: true },
+                  { id: 'fix', icon: Zap, label: 'Fix Mode', fill: true, visible: !!result },
+                  { id: 'compare', icon: Scale, label: 'Compare', visible: !!result },
+                  { id: 'monitor', icon: Activity, label: 'Monitor', visible: true },
+                  { id: 'analytics', icon: PieChart, label: 'Analytics', visible: true },
+                  { id: 'history', icon: Clock, label: 'History', visible: true }
+                ].filter(tab => tab.visible).map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={cn(
+                      "px-3 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all flex items-center gap-2 border border-transparent",
+                      activeTab === tab.id
+                        ? "bg-white text-blue-600 shadow-sm border-slate-100"
+                        : "text-slate-500 hover:text-slate-900 hover:bg-slate-100/50"
+                    )}
+                  >
+                    <tab.icon size={14} className={cn(tab.fill && activeTab === tab.id && "fill-blue-600")} />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="hidden lg:flex bg-white/50 backdrop-blur-sm border border-slate-200/50 rounded-full px-6 py-2.5 items-center gap-8 font-bold text-sm text-slate-500 shadow-sm animate-fade-in">
+                <a href="#features" className="hover:text-blue-600 transition-colors">Utility</a>
+                <a href="#pricing" className="hover:text-blue-600 transition-colors">Pricing</a>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* SECTION 3: Right Actions */}
+        <div className="flex items-center justify-end gap-3 shrink-0 z-20 flex-1">
+          {user ? (
+            <div className="flex items-center gap-3">
+              {result && !isPaid && (
+                <button
+                  onClick={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+                  className="hidden xl:flex px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95 whitespace-nowrap"
+                >
+                  Upgrade Plan
+                </button>
+              )}
+              <UserNav
+                user={user}
+                tier={effectiveTier}
+                isPaid={isPaid}
+                onViewReport={handleViewReport}
+                onViewHistory={() => setActiveTab('history')}
+                onViewDashboard={() => setActiveTab('monitor')}
+                onViewAnalytics={() => setActiveTab('analytics')}
+              />
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <a href="/login" className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-900 transition-colors">
+                Sign In
+              </a>
+              <button
+                onClick={() => {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  // Focus the input (with a slight delay to let scroll start)
+                  setTimeout(() => document.getElementById('url-input')?.focus(), 100);
+                }}
+                className="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-xs shadow-lg hover:shadow-black/10 hover:translate-y-[-1px] transition-all"
+              >
+                Get Started
+              </button>
+            </div>
+          )}
+        </div>
+      </nav >
+
+      {/* Pro Banner - Hide if Paid */}
+      {
+        !isPaid && (
+          <div className="bg-slate-900 text-white text-center py-3 px-4 text-xs font-bold uppercase tracking-widest relative overflow-hidden group cursor-pointer"
+            onClick={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}>
+            <div className="absolute inset-0 bg-blue-600 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out" />
+            <span className="relative z-10 flex items-center justify-center gap-2">
+              <Zap size={14} className="fill-yellow-400 text-yellow-400 animate-pulse" />
+              Launch Special: Grab Lifetime Deal for $99
+              <span className="hidden sm:inline opacity-50 mx-2">|</span>
+              <span className="hidden sm:inline text-slate-300 group-hover:text-white transition-colors">Prices increase in 48h</span>
+            </span>
+          </div>
+        )
+      }
+
+      {/* Hero Section */}
+      <section className={cn(
+        "transition-all duration-1000 ease-in-out overflow-hidden relative",
+        result || activeTab !== 'audit' ? "max-h-0 opacity-0 py-0" : "max-h-[1000px] pt-12 md:pt-16 pb-20 md:pb-32 px-6 opacity-100"
+      )}>
+        <div className="max-w-4xl mx-auto text-center space-y-10 relative">
+
+          <h1 className="text-6xl md:text-7xl font-black tracking-tight text-slate-900 leading-[0.9]">
+            Your social previews are <span className="text-blue-600 italic">leaking</span> money.
+          </h1>
+          <p className="text-xl md:text-2xl text-slate-500 max-w-2xl mx-auto font-medium leading-relaxed">
+            Turn every link share into a traffic magnet. Automatically design perfect OpenGraph images and use AI to double your social click-through rate.
+          </p>
+
+          <div className="pt-8">
+            <ScraperForm onResult={handleResult} limitReached={isLimitReached} />
+          </div>
+        </div>
+      </section>
+
+      {/* Results Mode Dashboard */}
+      {
+        (result || activeTab !== 'audit') && (
+          <section className="py-12 px-6">
+            <div className="max-w-7xl mx-auto">
+              {/* Smooth Transition Wrapper */}
+              <div key={activeTab} className="animate-fade-in w-full">
+                {activeTab === 'history' ? (
+                  <ScanHistory user={user} onSelectScan={(data) => handleResult(data)} />
+                ) : !result && activeTab !== 'monitor' && activeTab !== 'analytics' ? (
+                  <div className="py-20 text-center space-y-6 animate-fade-in">
+                    <div className="inline-flex items-center justify-center p-4 bg-slate-50 rounded-full mb-4">
+                      <LayoutDashboard className="w-8 h-8 text-slate-300" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-slate-900">No Scan Selected</h3>
+                    <p className="text-slate-500 max-w-md mx-auto">Please run an audit first to use this tool, or select a previous scan from your history.</p>
+                    <button
+                      onClick={() => setActiveTab('audit')}
+                      className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20"
+                    >
+                      Start New Audit
+                    </button>
+                  </div>
+                ) : activeTab === 'audit' && result ? (
+                  <div className="space-y-10">
+                    {/* Header Data */}
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 bg-white p-8 rounded-3xl border border-slate-200 shadow-sm animate-fade-in">
+                      <div className="space-y-2">
+                        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Scanning Website</span>
+                        <h2 className="text-4xl font-black text-slate-900 line-clamp-1">{result.metadata.title || 'Untitled Site'}</h2>
+                        <div className="flex items-center text-slate-500 font-semibold italic">
+                          {result.metadata.favicon && <img src={result.metadata.favicon} className="w-5 h-5 mr-2 rounded" alt="" />}
+                          {result.metadata.hostname}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => {
+                            if (isPaid) {
+                              setActiveTab('fix');
+                            } else {
+                              handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD);
+                            }
+                          }}
+                          className={cn(
+                            "px-6 py-3 rounded-xl text-sm font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-xl shadow-blue-500/20 active:scale-95",
+                            isPaid
+                              ? "bg-slate-900 text-white hover:bg-black"
+                              : "bg-blue-600 text-white hover:bg-blue-700"
+                          )}
+                        >
+                          {isPaid ? (
+                            <>
+                              <Zap size={16} fill="white" /> Fix Issues
+                            </>
+                          ) : (
+                            <>
+                              <Zap size={16} fill="white" /> Fix Issues ($149)
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Social Mockups */}
+                    <div className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-sm relative group overflow-hidden animate-fade-in animate-delay-1">
+                      <div className="relative z-10 flex justify-between items-center mb-8">
+                        <div>
+                          <h3 className="text-2xl font-bold text-slate-900">Preview Simulation</h3>
+                          <p className="text-slate-500 font-medium">Current appearance on social platforms.</p>
+                        </div>
+                      </div>
+                      <SocialPreviews metadata={result.metadata} isPaid={isPaid} onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)} />
+                    </div>
+
+                    {/* Dynamic Two Column: AI & Score */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                      <div className="lg:col-span-8 animate-fade-in animate-delay-2 h-full">
+                        <LockedFeature
+                          isLocked={!isPaid}
+                          label="Unlock AI Suggestions"
+                          onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+                          className="h-full rounded-2xl"
+                        >
+                          <AISuggestions
+                            title={result.metadata.title || ''}
+                            description={result.metadata.description || ''}
+                          />
+                        </LockedFeature>
+                      </div>
+                      <div className="lg:col-span-4 animate-fade-in animate-delay-3">
+                        <ScoreAudit score={result.score} issues={result.issues} stats={result.stats} />
+                      </div>
+                    </div>
+                  </div>
+                ) : activeTab === 'compare' && result ? (
+                  <LockedFeature
+                    isLocked={permissions ? !permissions.canBenchmark : true}
+                    label="Upgrade to Benchmark"
+                    onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+                    className="rounded-[2rem]"
+                  >
+                    <CompetitorBoard currentUrl={result.metadata.url} />
+                  </LockedFeature>
+                ) : activeTab === 'monitor' ? (
+                  <LockedFeature
+                    isLocked={permissions ? !permissions.canMonitor : true}
+                    label="Unlock Daily Monitoring"
+                    onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+                    className="rounded-[2rem]"
+                  >
+                    <Dashboard />
+                  </LockedFeature>
+                ) : activeTab === 'analytics' ? (
+                  <LockedFeature
+                    isLocked={permissions ? !permissions.canAnalyze : true}
+                    label="Unlock Analytics (Growth Plan)"
+                    onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_GROWTH || process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+                    className="rounded-[2rem]"
+                  >
+                    <AnalyticsDashboard />
+                  </LockedFeature>
+                ) : ( // This is the 'fix' tab
+                  /* PRO FIX MODE */
+                  result && (
+                    <div className="space-y-8 animate-fade-in">
+                      <LockedFeature
+                        isLocked={permissions ? !permissions.canFix : true}
+                        label="Unlock Remediation Studio"
+                        onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+                        className="rounded-[2rem]"
+                      >
+                        {/* WRAPPED CONTENT OF FIX MODE */}
+                        <div className="space-y-8">
+                          {/* Pro Fix Header - Redesigned for minimal/premium feel */}
+                          <div className="bg-white border border-slate-200 p-8 rounded-[2rem] shadow-sm flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="p-3 bg-slate-100 text-slate-900 rounded-xl">
+                                <Code size={24} />
+                              </div>
+                              <div>
+                                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Remediation Studio</h2>
+                                <p className="text-slate-500 font-medium text-sm">Optimize assets for {result.metadata.hostname}</p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setActiveTab('audit')}
+                              className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-900 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            {/* Copy-Paste Code */}
+                            <div className="bg-white border border-slate-200 rounded-[2rem] p-8 space-y-6">
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                  <Code size={20} />
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-900">Meta Tags</h3>
+                              </div>
+                              <p className="text-slate-500 text-sm font-medium -mt-4">Optimized meta block. Copy and paste into your &lt;head&gt;.</p>
+                              <MetaSnippet
+                                title={result.metadata.title || ''}
+                                description={result.metadata.description || ''}
+                                image={result.metadata.ogImage || ''}
+                                url={result.metadata.url || ''}
+                              />
+                            </div>
+
+                            {/* Image Generation */}
+                            <div className="bg-white border border-slate-200 rounded-[2rem] p-8 space-y-6">
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                                  <ImageIcon size={20} />
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-900">OG Image</h3>
+                              </div>
+                              <p className="text-slate-500 text-sm font-medium -mt-4">High-converting preview image.</p>
+                              <ImageStudio
+                                initialTitle={result.metadata.title || ''}
+                                hostname={result.metadata.hostname || ''}
+                                url={result.metadata.url}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </LockedFeature>
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
+          </section >
+        )
+      }
+
+      {/* Static Features Grid */}
+      {
+        !result && activeTab === 'audit' && (
+          <>
+            <section className="py-20 px-6 bg-white border-y border-slate-100 scroll-mt-20" id="features">
+              <div className="max-w-7xl mx-auto">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Feature 1: Competitor Benchmarking (Bento Large) */}
+                  <div className="md:col-span-2 bg-white rounded-[2.5rem] border border-slate-200 p-10 relative overflow-hidden group hover:shadow-2xl hover:shadow-blue-900/5 transition-all duration-500">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-full blur-3xl -mr-32 -mt-32 transition-transform group-hover:scale-110" />
+
+                    <div className="relative z-10 flex flex-col md:flex-row gap-10 items-start">
+                      <div className="space-y-4 flex-1">
+                        <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 mb-4 rotate-3 group-hover:rotate-0 transition-transform">
+                          <Scale size={24} />
+                        </div>
+                        <h3 className="text-3xl font-black text-slate-900 leading-tight">Competitor Benchmarking</h3>
+                        <p className="text-slate-500 font-medium text-lg leading-relaxed">
+                          Don't guess. <span className="text-blue-600 font-bold">Know.</span> Compare your preview side-by-side with your top 2 competitors. We calculate your "Win Rate" so you dominate the feed every time.
+                        </p>
+                      </div>
+
+                      {/* Visual: The VS Bars */}
+                      <div className="w-full md:w-64 bg-slate-50 rounded-2xl p-6 border border-slate-100 space-y-4 select-none">
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-xs font-bold uppercase text-slate-400">
+                            <span>You</span>
+                            <span className="text-green-600">98/100</span>
+                          </div>
+                          <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-600 w-[98%] rounded-full shadow-lg shadow-blue-500/20" />
+                          </div>
+                        </div>
+                        <div className="space-y-2 opacity-50">
+                          <div className="flex justify-between text-xs font-bold uppercase text-slate-400">
+                            <span>Competitor A</span>
+                            <span>45/100</span>
+                          </div>
+                          <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-slate-400 w-[45%] rounded-full" />
+                          </div>
+                        </div>
+                        <div className="pt-2 text-center">
+                          <span className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-black uppercase tracking-widest">
+                            Win Rate: 98%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Feature 2: Analytics Engine (Bento Vertical) */}
+                  <div className="md:col-span-1 bg-slate-900 rounded-[2.5rem] p-10 relative overflow-hidden group text-white hover:scale-[1.02] transition-transform duration-500">
+                    <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-blue-600/20 to-transparent" />
+                    <div className="relative z-10 space-y-6">
+                      <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-white mb-4 backdrop-blur-sm">
+                        <BarChart3 size={24} />
+                      </div>
+                      <h3 className="text-2xl font-black">Analytics Engine</h3>
+                      <p className="text-slate-400 font-medium leading-relaxed">
+                        Stop flying blind. Track real impressions, clicks, and CTR with our smart image proxy.
+                      </p>
+                      <div className="flex items-end gap-2 pt-4">
+                        <div className="text-4xl font-black tracking-tight">2.4x</div>
+                        <div className="mb-1 text-sm font-bold text-green-400">CTR uplift</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Feature 3: The Guardian (Bento Wide) */}
+                  <div className="md:col-span-3 bg-gradient-to-br from-blue-50 to-white rounded-[2.5rem] border border-blue-100 p-10 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-50">
+                      <Activity className="w-64 h-64 text-blue-100 -mr-20 -mt-20 rotate-12" />
+                    </div>
+
+                    <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
+                      <div className="bg-white p-4 rounded-full shadow-xl shadow-blue-500/10 shrink-0 animate-pulse">
+                        <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white">
+                          <Shield size={32} />
+                        </div>
+                      </div>
+
+                      <div className="text-center md:text-left space-y-2">
+                        <h3 className="text-3xl font-black text-slate-900">The Guardian™</h3>
+                        <p className="text-slate-500 font-medium text-lg max-w-2xl">
+                          Automated daily monitoring. We scan your top 5 URLs every morning and send a Slack/Email alert the moment your score drops or an image breaks.
+                        </p>
+                      </div>
+
+                      <button className="md:ml-auto px-8 py-4 bg-white text-slate-900 border border-slate-200 rounded-xl font-bold shadow-sm hover:bg-slate-50 transition-colors shrink-0">
+                        Configure Alerts
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Pricing Section */}
+            <section className="py-24 px-6 bg-slate-50 scroll-mt-20" id="pricing">
+              <div className="max-w-7xl mx-auto space-y-20">
+                <div className="text-center space-y-6 max-w-3xl mx-auto">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-[13px] font-bold uppercase tracking-wider">
+                    <Activity size={14} className="fill-blue-700" />
+                    Tiered Growth Model
+                  </div>
+                  <h2 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tight">
+                    Stop losing clicks. <br />Start dominating feeds.
+                  </h2>
+                  <p className="text-xl text-slate-500 font-medium leading-relaxed">
+                    Join 5,000+ founders using Social Sight to turn social previews into revenue.
+                  </p>
+                </div>
+
+                {/* Monthly Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
+                  {[
+                    {
+                      name: "Free",
+                      price: "$0",
+                      desc: "For dabbles & testers.",
+                      features: ["3 manual scans/day", "Basic OpenGraph Checks", "Preview Simulation"],
+                      cta: "Start Free",
+                      variant: "outline",
+                      priceId: null
+                    },
+                    {
+                      name: "Founder",
+                      price: "$19",
+                      period: "/mo",
+                      desc: "For serious solopreneurs.",
+                      features: ["Everything in Free", "The Guardian: Daily Monitoring", "1,000 tracked impressions/mo", "Competitor Benchmarking"],
+                      cta: "Start Trial",
+                      popular: true,
+                      variant: "blue",
+                      priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_FOUNDER
+                    },
+                    {
+                      name: "Growth",
+                      price: "$47",
+                      period: "/mo",
+                      desc: "For startups scaling up.",
+                      features: ["Analytics Dashboard", "Image Proxy Tracking", "10,000 tracked impressions", "AI Headline A/B Testing"],
+                      cta: "Get Growth",
+                      variant: "white",
+                      priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_GROWTH
+                    },
+                    {
+                      name: "Agency",
+                      price: "$127",
+                      period: "/mo",
+                      desc: "For pros measuring ROI.",
+                      features: ["Unlimited Monitoring", "White-label Reports", "Exportable CSV Data", "Priority Support"],
+                      cta: "Contact Sales",
+                      variant: "white",
+                      priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_AGENCY
+                    }
+                  ].map((tier, i) => (
+                    <div key={i} className={cn(
+                      "p-8 rounded-[2rem] border transition-all duration-300 relative",
+                      tier.variant === 'blue'
+                        ? "bg-slate-900 text-white border-slate-900 shadow-2xl shadow-blue-500/20 md:-translate-y-4"
+                        : "bg-white border-slate-200 text-slate-900 hover:border-blue-200 hover:shadow-xl"
+                    )}>
+                      {tier.popular && (
+                        <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg shadow-blue-500/30">
+                          Most Popular
+                        </div>
+                      )}
+                      <div className="space-y-2 mb-8">
+                        <h3 className={cn("text-lg font-black uppercase tracking-wide", tier.variant === 'blue' ? "text-blue-400" : "text-slate-400")}>{tier.name}</h3>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-4xl font-black tracking-tight">{tier.price}</span>
+                          {tier.period && <span className={cn("text-sm font-bold", tier.variant === 'blue' ? "text-slate-400" : "text-slate-400")}>{tier.period}</span>}
+                        </div>
+                        <p className={cn("text-sm font-medium", tier.variant === 'blue' ? "text-slate-400" : "text-slate-500")}>{tier.desc}</p>
+                      </div>
+
+                      <ul className="space-y-4 mb-8">
+                        {tier.features.map((feat, j) => (
+                          <li key={j} className="flex items-start gap-3 text-sm font-semibold">
+                            <div className={cn("mt-0.5 min-w-[16px]", tier.variant === 'blue' ? "text-blue-400" : "text-blue-600")}>
+                              <CheckCircle2 size={16} />
+                            </div>
+                            <span className={cn(tier.variant === 'blue' ? "text-slate-300" : "text-slate-600",
+                              feat === "AI Headline A/B Testing" && tier.name === "Growth" && "text-blue-600 font-bold"
+                            )}>{feat}</span>
+                          </li>
+                        ))}
+                      </ul>
+
+                      <button
+                        onClick={async () => {
+                          if (!tier.priceId) return;
+                          try {
+                            const res = await fetch('/api/checkout', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ priceId: tier.priceId })
+                            });
+                            const { url } = await res.json();
+                            if (url) window.location.href = url;
+                          } catch (e) {
+                            console.error("Checkout Failed", e);
+                          }
+                        }}
+                        className={cn(
+                          "w-full py-4 rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer",
+                          tier.variant === 'blue'
+                            ? "bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-500/25"
+                            : "bg-slate-100 text-slate-900 hover:bg-slate-200"
+                        )}>
+                        {tier.cta}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Lifetime Deal Banner */}
+                <div className="max-w-4xl mx-auto bg-gradient-to-r from-blue-600 to-blue-800 rounded-[2.5rem] p-10 md:p-14 text-white relative overflow-hidden shadow-2xl shadow-blue-900/20 group cursor-pointer hover:scale-[1.01] transition-transform">
+                  <div className="absolute top-0 right-0 p-32 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 transition-transform group-hover:scale-110" />
+
+                  <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
+                    <div className="space-y-6 text-center md:text-left">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full text-[11px] font-black uppercase tracking-widest border border-white/20">
+                        <Zap size={12} className="fill-white" /> Early Bird Lifetime Deal
+                      </div>
+                      <h3 className="text-4xl md:text-5xl font-black tracking-tight leading-none text-white">
+                        Get Lifetime Access. <br />Pay once, keep it forever.
+                      </h3>
+                      <p className="text-blue-100 font-medium text-lg max-w-lg">
+                        Secure the "Founder" tier features for a one-time payment. Perfect for indie hackers building in public.
+                      </p>
+                      <div className="flex flex-col md:flex-row items-center gap-4 pt-2">
+                        <div className="text-5xl font-black text-white flex items-center gap-3">
+                          <span className="text-3xl text-blue-200 line-through opacity-60">$299</span>
+                          $99
+                        </div>
+                        <div className="px-3 py-1 bg-red-500 text-white text-xs font-bold uppercase rounded-lg shadow-sm animate-pulse">Only 14/50 spots left</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const priceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD;
+                        console.log("Banner Button Clicked. PriceID:", priceId);
+
+                        if (!priceId) {
+                          alert("Configuration Error: NEXT_PUBLIC_STRIPE_PRICE_LTD is missing in .env.local");
+                          return;
+                        }
+
+                        try {
+                          const res = await fetch('/api/checkout', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ priceId })
+                          });
+
+                          if (res.status === 401) {
+                            window.location.href = '/login';
+                            return;
+                          }
+
+                          const data = await res.json();
+                          if (data.error) throw new Error(data.error);
+                          if (data.url) window.location.href = data.url;
+                        } catch (e) {
+                          console.error("LTD Checkout Failed", e);
+                          alert("Checkout Failed: " + (e instanceof Error ? e.message : "Unknown Error"));
+                        }
+                      }}
+                      className="px-10 py-5 bg-white text-blue-700 rounded-2xl font-black text-lg shadow-xl hover:bg-blue-50 transition-colors shrink-0 active:scale-95 cursor-pointer">
+                      Grab Lifetime Deal
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </section>
+          </>
+        )
+      }
+
+      <footer className="py-24 border-t border-slate-200 text-center text-slate-400 font-bold uppercase tracking-widest text-xs px-6">
+        © 2025 Social Sight — Built for Speed, Optimized for Revenue.
+      </footer>
+    </main >
+  );
+}
+
+

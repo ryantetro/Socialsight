@@ -1,53 +1,59 @@
-import fs from 'fs';
-import path from 'path';
+import { SupabaseClient } from '@supabase/supabase-js';
 
-const STATS_FILE = path.join(process.cwd(), 'stats.json');
-
-interface StatsData {
-    scores: number[];
-}
-
-function getStats(): StatsData {
+export async function recordScore(score: number, url: string, supabase: SupabaseClient) {
     try {
-        if (!fs.existsSync(STATS_FILE)) {
-            // Seed with 1000 realistic scores for a "cold start"
-            const seedScores = Array.from({ length: 1000 }, () => {
-                const rand = Math.random();
-                if (rand > 0.8) return Math.floor(Math.random() * 20) + 80; // 80-100
-                if (rand > 0.4) return Math.floor(Math.random() * 30) + 50; // 50-80
-                return Math.floor(Math.random() * 50); // 0-50
+        // 1. Insert the scan (anonymously or authenticated depending on Client)
+        // We catch errors here so we don't block the UI if insert fails (e.g. RLS issues)
+        const { error: insertError } = await supabase
+            .from('scans')
+            .insert({
+                url: url,
+                result: { score }, // Storing minimal result for stats
+                user_id: (await supabase.auth.getUser()).data.user?.id || null
             });
-            const data = { scores: seedScores };
-            fs.writeFileSync(STATS_FILE, JSON.stringify(data));
-            return data;
+
+        if (insertError) {
+            console.error('Failed to record scan stats:', insertError);
+            // Fallback: don't ruin the UX, just return simulated stats
         }
-        return JSON.parse(fs.readFileSync(STATS_FILE, 'utf-8'));
+
+        // 2. Get Real Stats
+        // Count total scans
+        const { count: realCount, error: countError } = await supabase
+            .from('scans')
+            .select('*', { count: 'exact', head: true });
+
+        // Calculate Percentile (approximate)
+        // Count how many scores are lower than this one
+        const { count: lowerCount, error: lowerError } = await supabase
+            .from('scans')
+            .select('*', { count: 'exact', head: true })
+            .lt('result->>score', score); // Assuming result is jsonb and has score
+
+        const totalScans = (realCount || 0) + 13530; // Base offset for social proof
+        const lower = lowerCount || 0;
+        const total = realCount || 1;
+
+        // Default percentile calculation
+        let percentile = Math.round((lower / total) * 100);
+        if (percentile < 1) percentile = 1;
+        if (percentile > 99) percentile = 99;
+
+        // Fallback for empty DB
+        if (realCount === 0) {
+            percentile = score > 80 ? 92 : score > 50 ? 65 : 30;
+        }
+
+        return {
+            totalScans,
+            percentile
+        };
+
     } catch (e) {
-        return { scores: [] };
+        console.error('Stats error:', e);
+        return {
+            totalScans: 13531,
+            percentile: score > 80 ? 88 : 50
+        };
     }
-}
-
-export function recordScore(score: number) {
-    const data = getStats();
-    data.scores.push(score);
-    // Keep file size reasonable for this demo
-    if (data.scores.length > 5000) data.scores.shift();
-
-    try {
-        fs.writeFileSync(STATS_FILE, JSON.stringify(data));
-    } catch (e) {
-        console.error('Failed to save stats:', e);
-    }
-
-    const count = data.scores.length;
-    const lowerScores = data.scores.filter(s => s < score).length;
-    const sameScores = data.scores.filter(s => s === score).length;
-
-    // Percentile = (Number of scores below + 0.5 * Number of scores equal) / total
-    const percentile = ((lowerScores + (0.5 * sameScores)) / count) * 100;
-
-    return {
-        totalScans: count + 12450, // Add a "historic" offset to make it look like a large app
-        percentile: Math.round(percentile)
-    };
 }
