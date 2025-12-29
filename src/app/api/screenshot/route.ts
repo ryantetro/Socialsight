@@ -27,7 +27,7 @@ export async function POST(req: Request) {
         await browser.close();
 
         // Return image directly
-        return new NextResponse(screenshot, {
+        return new NextResponse(Buffer.from(screenshot), {
             headers: {
                 'Content-Type': 'image/png',
                 'Cache-Control': 'public, max-age=3600',
