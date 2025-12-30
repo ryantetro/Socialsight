@@ -14,6 +14,7 @@ function LoginContent() {
 
     const searchParams = useSearchParams()
     const priceId = searchParams.get('priceId')
+    const view = searchParams.get('view')
 
     async function handleSubmit(formData: FormData) {
         setIsLoading(true)
@@ -133,8 +134,9 @@ function LoginContent() {
                             </div>
                         )}
 
-                        {/* Hidden Input for Price ID */}
+                        {/* Hidden Input for Price ID & View */}
                         {priceId && <input type="hidden" name="priceId" value={priceId} />}
+                        {view && <input type="hidden" name="view" value={view} />}
 
                         <button
                             type="submit"

@@ -11,9 +11,10 @@ interface ScoreAuditProps {
         totalScans: number;
         percentile: number;
     };
+    onCheckout?: () => void;
 }
 
-export default function ScoreAudit({ score, issues, stats }: ScoreAuditProps) {
+export default function ScoreAudit({ score, issues, stats, onCheckout }: ScoreAuditProps) {
     const getScoreColor = (s: number) => {
         if (s >= 90) return 'text-green-500 stroke-green-500';
         if (s >= 70) return 'text-amber-500 stroke-amber-500';
@@ -33,7 +34,7 @@ export default function ScoreAudit({ score, issues, stats }: ScoreAuditProps) {
             const res = await fetch('/api/checkout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ priceId })
+                body: JSON.stringify({ priceId, view: 'fix' })
             });
 
             if (res.status === 401) {
@@ -92,12 +93,12 @@ export default function ScoreAudit({ score, issues, stats }: ScoreAuditProps) {
                         strokeDashoffset={strokeDashoffset}
                         strokeLinecap="round"
                         strokeWidth="8"
-                        className={cn("transition-all duration-1000 ease-out", getScoreColor(score).split(' ')[1])}
+                        className={cn("transition-all duration-1000 ease-out", getScoreColor(score || 0).split(' ')[1])}
                     />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center mt-2">
-                    <span className={cn("text-5xl font-black tracking-tight", getScoreColor(score).split(' ')[0])}>
-                        {score}
+                    <span className={cn("text-5xl font-black tracking-tight", getScoreColor(score || 0).split(' ')[0])}>
+                        {score || 0}
                     </span>
                     <span className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-400">out of 100</span>
                 </div>
@@ -119,7 +120,7 @@ export default function ScoreAudit({ score, issues, stats }: ScoreAuditProps) {
 
             {/* Actionable Issues */}
             <div className="space-y-4 flex-1">
-                {issues.length === 0 ? (
+                {(!issues || issues.length === 0) ? (
                     <div className="flex items-center gap-3 p-4 bg-green-50 rounded-2xl border border-green-100">
                         <CheckCircle2 className="text-green-500 w-5 h-5 shrink-0" />
                         <span className="text-sm font-bold text-green-700">Everything looks perfect!</span>
@@ -163,7 +164,7 @@ export default function ScoreAudit({ score, issues, stats }: ScoreAuditProps) {
             {/* High-Value CTA */}
             <div className="mt-8 pt-8 border-t border-slate-100">
                 <button
-                    onClick={handleCheckout}
+                    onClick={onCheckout || handleCheckout}
                     className="w-full bg-slate-900 hover:bg-black text-white p-5 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-slate-200 group/btn overflow-hidden relative">
                     <div className="absolute inset-0 bg-blue-600 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300" />
                     <Zap className="w-4 h-4 relative z-10 fill-amber-400 text-amber-400 group-hover/btn:scale-110 transition-transform" />

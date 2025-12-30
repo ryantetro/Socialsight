@@ -193,7 +193,7 @@ export default function Dashboard() {
                         <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm">
                             <h3 className="font-bold text-lg mb-4">Live Preview</h3>
                             {selectedProject.metadata?.ogImage ? (
-                                <div className="rounded-xl overflow-hidden border border-slate-100 aspect-[1.91/1] bg-slate-100 relative group cursor-pointer hover:ring-4 hover:ring-blue-500/20 transition-all">
+                                <div className="rounded-xl overflow-hidden border border-slate-100 aspect-[1.91/1] bg-slate-100 relative group cursor-pointer hover:ring-4 hover:ring-blue-500/20 transition-all" role="button">
                                     <img src={selectedProject.metadata.ogImage} className="w-full h-full object-cover" />
                                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white font-bold transition-opacity">
                                         View Full Size
@@ -264,6 +264,7 @@ export default function Dashboard() {
                     <div
                         key={project.id}
                         onClick={() => setSelectedProject(project)}
+                        role="button"
                         className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:translate-y-[-4px] transition-all cursor-pointer group relative"
                     >
                         <button

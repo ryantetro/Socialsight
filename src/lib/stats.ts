@@ -1,6 +1,7 @@
 import { SupabaseClient, createClient } from '@supabase/supabase-js';
+import { InspectionResult } from '@/types';
 
-export async function recordScore(score: number, url: string, supabase: SupabaseClient) {
+export async function recordScore(fullResult: InspectionResult, url: string, supabase: SupabaseClient) {
     try {
         // 1. Insert the scan (anonymously or authenticated depending on Client)
         // We catch errors here so we don't block the UI if insert fails (e.g. RLS issues)
@@ -8,7 +9,7 @@ export async function recordScore(score: number, url: string, supabase: Supabase
             .from('scans')
             .insert({
                 url: url,
-                result: { score }, // Storing minimal result for stats
+                result: fullResult, // Storing full result for Scan History
                 user_id: (await supabase.auth.getUser()).data.user?.id || null
             });
 
@@ -41,7 +42,7 @@ export async function recordScore(score: number, url: string, supabase: Supabase
         const { count: lowerCount, error: lowerError } = await adminClient
             .from('scans')
             .select('*', { count: 'exact', head: true })
-            .lt('result->score', score); // Use ->score to compare as number/json matches our previous fix
+            .lt('result->score', fullResult.score); // Use ->score to compare as number/json matches our previous fix
 
         const totalScans = (realCount || 0) + 13530; // Base offset for social proof
         const lower = lowerCount || 0;
@@ -54,7 +55,7 @@ export async function recordScore(score: number, url: string, supabase: Supabase
 
         // Fallback for empty DB
         if (realCount === 0) {
-            percentile = score > 80 ? 92 : score > 50 ? 65 : 30;
+            percentile = fullResult.score > 80 ? 92 : fullResult.score > 50 ? 65 : 30;
         }
 
         return {
@@ -66,7 +67,7 @@ export async function recordScore(score: number, url: string, supabase: Supabase
         console.error('Stats error:', e);
         return {
             totalScans: 13531,
-            percentile: score > 80 ? 88 : 50
+            percentile: fullResult.score > 80 ? 88 : 50
         };
     }
 }

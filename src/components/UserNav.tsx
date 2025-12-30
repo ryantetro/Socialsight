@@ -2,7 +2,7 @@
 
 import { User } from '@supabase/supabase-js';
 import { UserTier } from '@/hooks/useProfile';
-import { LogOut, ChevronDown, User as UserIcon, LayoutDashboard, Zap, FileText, Activity, PieChart } from 'lucide-react';
+import { LogOut, ChevronDown, User as UserIcon, LayoutDashboard, Zap, FileText, Activity, PieChart, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import PlanPill from './PlanPill';
@@ -16,9 +16,10 @@ interface UserNavProps {
     onViewHistory?: () => void;
     onViewDashboard?: () => void;
     onViewAnalytics?: () => void;
+    isLoading?: boolean;
 }
 
-export default function UserNav({ user, tier, isPaid, onViewReport, onViewHistory, onViewDashboard, onViewAnalytics }: UserNavProps) {
+export default function UserNav({ user, tier, isPaid, onViewReport, onViewHistory, onViewDashboard, onViewAnalytics, isLoading }: UserNavProps) {
     const [isOpen, setIsOpen] = useState(false);
 
     const handleSignOut = async () => {
@@ -106,6 +107,7 @@ export default function UserNav({ user, tier, isPaid, onViewReport, onViewHistor
                     </button>
                     <button
                         onClick={() => {
+                            if (isLoading) return;
                             setIsOpen(false);
                             // If on home page with results, this might need to trigger state, but for now scrolling to top or dashboard if accessible
                             if (onViewReport) {
@@ -114,9 +116,17 @@ export default function UserNav({ user, tier, isPaid, onViewReport, onViewHistor
                                 window.location.href = '/dashboard';
                             }
                         }}
-                        className="w-full text-left px-3 py-2 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                        disabled={isLoading}
+                        className={cn(
+                            "w-full text-left px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors",
+                            isLoading ? "text-slate-400 bg-slate-50 cursor-not-allowed" : "text-slate-600 hover:bg-slate-50"
+                        )}
                     >
-                        <FileText size={14} />
+                        {isLoading ? (
+                            <Loader2 size={14} className="animate-spin text-blue-600" />
+                        ) : (
+                            <FileText size={14} />
+                        )}
                         Last Report
                     </button>
                     <button

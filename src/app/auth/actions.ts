@@ -13,11 +13,16 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
 async function handlePostAuthRedirect(formData: FormData, userId: string, email: string | undefined) {
     const priceId = formData.get('priceId') as string
+    const view = formData.get('view') as string
+    let redirectUrl = view ? `/?view=${view}` : '/'
 
     if (priceId && userId) {
         try {
             // Create Stripe Session immediately
             const origin = (await headers()).get('origin')
+            // Append view param to success/cancel urls if present
+            const successUrl = view ? `${origin}/?success=true&view=${view}` : `${origin}/?success=true`
+            const cancelUrl = view ? `${origin}/?canceled=true&view=${view}` : `${origin}/?canceled=true`
 
             const session = await stripe.checkout.sessions.create({
                 mode: priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD ? 'payment' : 'subscription',
@@ -30,12 +35,12 @@ async function handlePostAuthRedirect(formData: FormData, userId: string, email:
                         quantity: 1,
                     },
                 ],
-                success_url: `${origin}/?success=true`,
-                cancel_url: `${origin}/?canceled=true`,
+                success_url: successUrl,
+                cancel_url: cancelUrl,
             })
 
             if (session.url) {
-                redirect(session.url)
+                redirectUrl = session.url
             }
         } catch (e) {
             console.error('Stripe Redirect Failed', e)
@@ -44,7 +49,7 @@ async function handlePostAuthRedirect(formData: FormData, userId: string, email:
     }
 
     revalidatePath('/', 'layout')
-    redirect('/')
+    redirect(redirectUrl)
 }
 
 export async function login(formData: FormData) {

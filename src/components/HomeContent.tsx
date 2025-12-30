@@ -32,13 +32,14 @@ import VictoryModal from '@/components/VictoryModal';
 export default function HomeContent() {
   const [result, setResult] = useState<InspectionResult | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [activeTab, setActiveTab] = useState<'audit' | 'fix' | 'compare' | 'monitor' | 'analytics' | 'history'>('audit');
   const [showVictoryModal, setShowVictoryModal] = useState(false);
 
 
   const [debugTier, setDebugTier] = useState<{ active: boolean, tier: any }>({ active: false, tier: 'free' });
 
-  const { user: realUser, profile, loading: authLoading, isPaid: realIsPaid, permissions: realPermissions } = useProfile();
+  const { user: realUser, profile, loading: authLoading, isPaid: realIsPaid, permissions: realPermissions, refresh } = useProfile();
 
   // Handle Debug Overrides
   const isDebugSignedOut = debugTier.active && debugTier.tier === 'signed-out';
@@ -68,10 +69,24 @@ export default function HomeContent() {
 
   useEffect(() => {
     const view = searchParams.get('view');
-    if (view === 'history') {
-      setActiveTab('history');
+    const success = searchParams.get('success');
+
+    if (view && ['audit', 'fix', 'compare', 'monitor', 'analytics', 'history'].includes(view)) {
+      setActiveTab(view as any);
     }
-  }, [searchParams]);
+
+    if (success === 'true' && refresh) {
+      refresh();
+    }
+
+    // Clear parameters from URL so they don't persist or interfere with manual tab switching
+    if (view || success) {
+      setTimeout(() => {
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }, 100);
+    }
+  }, [searchParams, refresh]);
 
   useEffect(() => {
     // Check daily scan limit
@@ -112,6 +127,19 @@ export default function HomeContent() {
 
     loadScan();
   }, [scanId]);
+
+  // Restore last scan from localStorage if none present
+  useEffect(() => {
+    if (result) return;
+    const saved = localStorage.getItem('last_scan_result');
+    if (saved) {
+      try {
+        setResult(JSON.parse(saved));
+      } catch (e) {
+        console.error("Failed to restore last scan", e);
+      }
+    }
+  }, []);
 
   const incrementScan = () => {
     const newCount = scanCount + 1;
@@ -158,40 +186,64 @@ export default function HomeContent() {
     // 1. If we already have a result, just scroll to it
     if (result) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      setActiveTab('audit'); // Ensure we are on audit tab
       return;
     }
 
-    // 2. Try to restore from Database (if logged in)
-    if (user) {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('scans')
-        .select('result')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+    setIsRestoring(true);
+    setIsTransitioning(true);
 
-      if (data && data.result) {
-        setResult(data.result as InspectionResult);
-        setActiveTab('audit');
-        return;
-      }
-    }
+    try {
+      // 2. Try to restore from Database (if logged in)
+      if (user) {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from('scans')
+          .select('result')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
 
-    // 3. Try to restore from localStorage
-    const saved = localStorage.getItem('last_scan_result');
-    if (saved) {
-      try {
-        const data = JSON.parse(saved);
-        setResult(data);
-        setActiveTab('audit');
-      } catch (e) {
-        console.error("Failed to restore result", e);
+        if (data && data.result) {
+          // Add a slight artificial delay for the transition to feel smooth
+          setTimeout(() => {
+            setResult(data.result as InspectionResult);
+            setActiveTab('audit');
+            setIsRestoring(false);
+            setIsTransitioning(false);
+          }, 300);
+          return;
+        }
       }
-    } else {
-      // Optional: Alert user if no history
-      alert("No recent scan found.");
+
+      // 3. Try to restore from localStorage
+      const saved = localStorage.getItem('last_scan_result');
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+          setTimeout(() => {
+            setResult(data);
+            setActiveTab('audit');
+            setIsRestoring(false);
+            setIsTransitioning(false);
+          }, 300);
+          return;
+        } catch (e) {
+          console.error("Failed to restore result", e);
+        }
+      } else {
+        // No history found
+        setTimeout(() => {
+          alert("No recent scan found.");
+          setIsRestoring(false);
+          setIsTransitioning(false);
+        }, 300);
+      }
+    } catch (err) {
+      console.error("Error in handleViewReport:", err);
+      setIsRestoring(false);
+      setIsTransitioning(false);
     }
   };
 
@@ -199,14 +251,17 @@ export default function HomeContent() {
     setIsTransitioning(true);
     setTimeout(() => {
       setResult(null);
+      localStorage.removeItem('last_scan_result');
       setActiveTab('audit');
       setIsTransitioning(false);
     }, 300);
   };
 
-  const handleCheckout = async (priceId: string | undefined) => {
+  const handleCheckout = async (priceId: string | undefined, targetView?: string) => {
     if (!user) {
-      window.location.href = '/login?priceId=' + priceId;
+      let loginUrl = '/login?priceId=' + priceId;
+      if (targetView) loginUrl += '&view=' + targetView;
+      window.location.href = loginUrl;
       return;
     }
 
@@ -216,10 +271,25 @@ export default function HomeContent() {
     }
 
     try {
+      // Pass targetView to the checkout API if needed, BUT for now 
+      // the API (actions.ts) handles redirect based on form data in the LOGIN flow.
+      // For direct checkout (already logged in), we need to ensure the SUCCESS url 
+      // also has the view param. 
+      // However, the current /api/checkout implementation might need update 
+      // if it handles the stripe session creation directly.
+      // CHECK: The user provided actions.ts handles the post-auth redirect.
+      // Does /api/checkout use shared logic? 
+      // If /api/checkout is a route handler, we might need to update it too.
+      // Let's assume for now we just pass it in body if strictly needed, 
+      // OR we just rely on the fact that if they are logged in, 
+      // they stay on the page or get redirected? 
+      // Wait, if they are logged in, this calls /api/checkout.
+      // If /api/checkout redirects to Stripe, we want Stripe to redirect back to /?view=...
+
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priceId })
+        body: JSON.stringify({ priceId, view: targetView })
       });
 
       if (res.status === 401) {
@@ -258,7 +328,7 @@ export default function HomeContent() {
       <VictoryModal
         isOpen={showVictoryModal}
         onClose={() => setShowVictoryModal(false)}
-        onUpgrade={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+        onUpgrade={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'monitor')}
         onEnableAnalytics={() => {
           setShowVictoryModal(false);
           setActiveTab('fix'); // Send them to fix mode to get tags/image
@@ -279,6 +349,7 @@ export default function HomeContent() {
         <div className="flex items-center gap-4 min-w-0 shrink-0 z-20 md:flex-1">
           <div
             onClick={reset}
+            role="button"
             className="flex items-center gap-2 font-black text-2xl tracking-tighter cursor-pointer group shrink-0"
           >
             <div className="bg-blue-600 text-white w-10 h-10 flex items-center justify-center rounded-full group-hover:scale-110 transition-transform shadow-lg shadow-blue-500/20 z-10 relative">
@@ -351,6 +422,7 @@ export default function HomeContent() {
                 onViewHistory={() => setActiveTab('history')}
                 onViewDashboard={() => setActiveTab('monitor')}
                 onViewAnalytics={() => setActiveTab('analytics')}
+                isLoading={isRestoring}
               />
             </div>
           ) : (
@@ -377,7 +449,8 @@ export default function HomeContent() {
       {
         !isPaid && (
           <div className="bg-slate-900 text-white text-center py-3 px-4 text-xs font-bold uppercase tracking-widest relative overflow-hidden group cursor-pointer"
-            onClick={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}>
+            onClick={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+            role="button">
             <div className="absolute inset-0 bg-blue-600 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out" />
             <span className="relative z-10 flex items-center justify-center gap-2">
               <Zap size={14} className="fill-yellow-400 text-yellow-400 animate-pulse" />
@@ -438,10 +511,10 @@ export default function HomeContent() {
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 bg-white p-8 rounded-3xl border border-slate-200 shadow-sm animate-fade-in">
                       <div className="space-y-2">
                         <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Scanning Website</span>
-                        <h2 className="text-4xl font-black text-slate-900 line-clamp-1">{result.metadata.title || 'Untitled Site'}</h2>
+                        <h2 className="text-4xl font-black text-slate-900 line-clamp-1">{result.metadata?.title || 'Untitled Site'}</h2>
                         <div className="flex items-center text-slate-500 font-semibold italic">
-                          {result.metadata.favicon && <img src={result.metadata.favicon} className="w-5 h-5 mr-2 rounded" alt="" />}
-                          {result.metadata.hostname}
+                          {result.metadata?.favicon && <img src={result.metadata.favicon} className="w-5 h-5 mr-2 rounded" alt="" />}
+                          {result.metadata?.hostname || 'unknown-host'}
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -450,7 +523,7 @@ export default function HomeContent() {
                             if (isPaid) {
                               setActiveTab('fix');
                             } else {
-                              handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD);
+                              handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'fix');
                             }
                           }}
                           className={cn(
@@ -475,7 +548,11 @@ export default function HomeContent() {
 
                     {/* Mobile-Only Score Card (Appears above Preview) */}
                     <div className="lg:hidden animate-fade-in animate-delay-1">
-                      <ScoreAudit score={result.score} issues={result.issues} stats={result.stats} />
+                      <ScoreAudit
+                        score={result.score || 0}
+                        issues={result.issues || []}
+                        stats={result.stats}
+                      />
                     </div>
 
                     {/* Social Mockups */}
@@ -486,7 +563,11 @@ export default function HomeContent() {
                           <p className="text-slate-500 font-medium">Current appearance on social platforms.</p>
                         </div>
                       </div>
-                      <SocialPreviews metadata={result.metadata} isPaid={isPaid} onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)} />
+                      <SocialPreviews
+                        metadata={result.metadata || {}}
+                        isPaid={isPaid}
+                        onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'audit')}
+                      />
                     </div>
 
                     {/* Dynamic Two Column: AI & Score */}
@@ -495,17 +576,23 @@ export default function HomeContent() {
                         <LockedFeature
                           isLocked={!isPaid}
                           label="Unlock AI Suggestions"
-                          onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+                          onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'audit')}
                           className="h-full rounded-2xl"
                         >
                           <AISuggestions
-                            title={result.metadata.title || ''}
-                            description={result.metadata.description || ''}
+                            isPaid={isPaid}
+                            title={result.metadata?.title || ''}
+                            description={result.metadata?.description || ''}
                           />
                         </LockedFeature>
                       </div>
                       <div className="hidden lg:block lg:col-span-4 animate-fade-in animate-delay-3">
-                        <ScoreAudit score={result.score} issues={result.issues} stats={result.stats} />
+                        <ScoreAudit
+                          score={result.score || 0}
+                          issues={result.issues || []}
+                          stats={result.stats}
+                          onCheckout={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'fix')}
+                        />
                       </div>
                     </div>
                   </div>
@@ -513,19 +600,21 @@ export default function HomeContent() {
                   <LockedFeature
                     isLocked={permissions ? !permissions.canBenchmark : true}
                     label="Upgrade to Benchmark"
-                    onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+                    onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'compare')}
                     className="rounded-[2rem]"
                     lockBody
+                    pageCenter
                   >
-                    <CompetitorBoard currentUrl={result.metadata.url} />
+                    <CompetitorBoard currentUrl={result.metadata?.url} />
                   </LockedFeature>
                 ) : activeTab === 'monitor' ? (
                   <LockedFeature
                     isLocked={permissions ? !permissions.canMonitor : true}
                     label="Unlock Daily Monitoring"
-                    onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+                    onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'monitor')}
                     className="rounded-[2rem]"
                     lockBody
+                    pageCenter
                   >
                     <Dashboard />
                   </LockedFeature>
@@ -533,9 +622,10 @@ export default function HomeContent() {
                   <LockedFeature
                     isLocked={permissions ? !permissions.canAnalyze : true}
                     label="Unlock Analytics (Growth Plan)"
-                    onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_GROWTH || process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+                    onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_GROWTH || process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'analytics')}
                     className="rounded-[2rem]"
                     lockBody
+                    pageCenter
                   >
                     <AnalyticsDashboard />
                   </LockedFeature>
@@ -546,9 +636,10 @@ export default function HomeContent() {
                       <LockedFeature
                         isLocked={permissions ? !permissions.canFix : true}
                         label="Unlock Remediation Studio"
-                        onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+                        onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'fix')}
                         className="rounded-[2rem]"
                         lockBody
+                        pageCenter
                       >
                         {/* WRAPPED CONTENT OF FIX MODE */}
                         <div className="space-y-8">
@@ -560,7 +651,7 @@ export default function HomeContent() {
                               </div>
                               <div className="min-w-0">
                                 <h2 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight truncate">Remediation Studio</h2>
-                                <p className="text-slate-500 font-medium text-xs md:text-sm truncate">Optimize assets for {result.metadata.hostname}</p>
+                                <p className="text-slate-500 font-medium text-xs md:text-sm truncate">Optimize assets for {result.metadata?.hostname || 'unknown-host'}</p>
                               </div>
                             </div>
                             <button
@@ -582,10 +673,10 @@ export default function HomeContent() {
                               </div>
                               <p className="text-slate-500 text-sm font-medium -mt-4">Optimized meta block. Copy and paste into your &lt;head&gt;.</p>
                               <MetaSnippet
-                                title={result.metadata.title || ''}
-                                description={result.metadata.description || ''}
-                                image={result.metadata.ogImage || ''}
-                                url={result.metadata.url || ''}
+                                title={result.metadata?.title || ''}
+                                description={result.metadata?.description || ''}
+                                image={result.metadata?.ogImage || ''}
+                                url={result.metadata?.url || ''}
                                 siteId={result.siteId}
                               />
                             </div>
@@ -600,9 +691,9 @@ export default function HomeContent() {
                               </div>
                               <p className="text-slate-500 text-sm font-medium -mt-4">High-converting preview image.</p>
                               <ImageStudio
-                                initialTitle={result.metadata.title || ''}
-                                hostname={result.metadata.hostname || ''}
-                                url={result.metadata.url}
+                                initialTitle={result.metadata?.title || ''}
+                                hostname={result.metadata?.hostname || ''}
+                                url={result.metadata?.url}
                               />
                             </div>
                           </div>
@@ -610,13 +701,11 @@ export default function HomeContent() {
                           {/* Guardian Enrollment Section */}
                           <div className="animate-fade-in-up delay-300">
                             <GuardianEnrollment
-                              defaultUrl={result.metadata.url || ''}
-                              siteId={result.siteId || 'pp_demo'} // Pass the tracked site ID
-                              tier={isPaid ? 'Founder' : 'Free'}
-                              onUpgrade={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
-                              onScansStart={() => {
-                                // Maybe notify user or just let the success screen handle it
-                              }}
+                              defaultUrl={result.metadata?.url || ''}
+                              siteId={result.siteId || 'pp_demo'}
+                              tier={effectiveTier as any}
+                              onUpgrade={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'monitor')}
+                              onScansStart={() => { }}
                             />
                           </div>
                         </div>
@@ -861,7 +950,7 @@ export default function HomeContent() {
                         Get Lifetime Access. <br />Pay once, keep it forever.
                       </h3>
                       <p className="text-blue-100 font-medium text-lg max-w-lg">
-                        Secure the "Founder" tier features for a one-time payment. Perfect for indie hackers building in public.
+                        Secure the "Growth" tier features for a one-time payment. Includes Analytics, Monitoring, and A/B Testing.
                       </p>
                       <div className="flex flex-col md:flex-row items-center gap-4 pt-2">
                         <div className="text-5xl font-black text-white flex items-center gap-3">

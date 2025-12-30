@@ -54,7 +54,7 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
                         align === 'right' ? "right-0 origin-top-right" : "left-0 origin-top-left"
                     )}>
                         {/* Overlay to close on click outside */}
-                        <div className="fixed inset-0 z-0 h-screen w-screen cursor-default" onClick={() => setIsOpen(false)} />
+                        <div className="fixed inset-0 z-0 h-screen w-screen cursor-default" onClick={() => setIsOpen(false)} role="button" />
 
                         <div className="relative z-10 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xl shadow-blue-900/10 flex items-center gap-2 ring-4 ring-slate-50">
                             <form onSubmit={handleSubmit} className="flex-1 flex items-center gap-2">

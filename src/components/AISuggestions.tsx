@@ -7,9 +7,10 @@ import { AISuggestion } from '@/types';
 interface AISuggestionsProps {
     title: string;
     description: string;
+    isPaid?: boolean;
 }
 
-export default function AISuggestions({ title, description }: AISuggestionsProps) {
+export default function AISuggestions({ title, description, isPaid }: AISuggestionsProps) {
     const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
     const [loading, setLoading] = useState(false);
     const [copied, setCopied] = useState<number | null>(null);
@@ -87,7 +88,7 @@ export default function AISuggestions({ title, description }: AISuggestionsProps
                 )}
             </div>
 
-            {suggestions.length > 0 && (
+            {suggestions.length > 0 && !isPaid && (
                 <p className="text-center mt-6 text-xs text-blue-200 uppercase tracking-widest font-bold">
                     Pay $9 to unlock unlimited AI variations
                 </p>

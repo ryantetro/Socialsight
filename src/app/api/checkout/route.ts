@@ -13,11 +13,15 @@ export async function POST(req: Request) {
             return new NextResponse(JSON.stringify({ error: "Unauthorized", redirect: "/login" }), { status: 401 });
         }
 
-        const { priceId } = await req.json();
+        const { priceId, view } = await req.json();
 
         if (!priceId) {
             return new NextResponse(JSON.stringify({ error: "Missing priceId" }), { status: 400 });
         }
+
+        const origin = req.headers.get('origin');
+        const successUrl = view ? `${origin}/?success=true&view=${view}` : `${origin}/?success=true`;
+        const cancelUrl = view ? `${origin}/?canceled=true&view=${view}` : `${origin}/?canceled=true`;
 
         const session = await stripe.checkout.sessions.create({
             mode: priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD ? 'payment' : 'subscription',
@@ -30,8 +34,8 @@ export async function POST(req: Request) {
                     quantity: 1,
                 },
             ],
-            success_url: `${req.headers.get('origin')}/?success=true`,
-            cancel_url: `${req.headers.get('origin')}/?canceled=true`,
+            success_url: successUrl,
+            cancel_url: cancelUrl,
         });
 
         return NextResponse.json({ url: session.url });

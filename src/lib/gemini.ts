@@ -3,10 +3,10 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export async function getCTRSuggestions(title: string, description: string) {
-    try {
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
-        const prompt = `
+    const prompt = `
       Analyze the following SEO title and description. 
       Title: "${title}"
       Description: "${description}"
@@ -23,13 +23,16 @@ export async function getCTRSuggestions(title: string, description: string) {
       Return ONLY the JSON. No markdown backticks.
     `;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
 
-        return JSON.parse(text);
-    } catch (error) {
-        console.error('Gemini error:', error);
-        return [];
-    }
+    // Clean markdown code blocks if present
+    const cleanedText = text.replace(/```json|```/g, '').trim();
+
+    return JSON.parse(cleanedText);
+  } catch (error) {
+    console.error('Gemini error:', error);
+    return [];
+  }
 }

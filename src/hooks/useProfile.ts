@@ -101,11 +101,11 @@ export function useProfile() {
     const permissions = {
         canMonitor: effectiveTier !== 'free',
         canBenchmark: effectiveTier !== 'free',
-        canAnalyze: effectiveTier === 'growth' || effectiveTier === 'agency',
+        canAnalyze: effectiveTier === 'growth' || effectiveTier === 'agency' || effectiveTier === 'ltd',
         canFix: effectiveTier !== 'free',
         canRemoveBranding: effectiveTier === 'agency',
         dailyLimit: effectiveTier === 'free' ? 3 : Infinity
     };
 
-    return { user, profile, loading, isPaid: effectiveTier !== 'free', permissions };
+    return { user, profile, loading, isPaid: effectiveTier !== 'free', permissions, refresh: () => user && fetchProfile(user.id) };
 }

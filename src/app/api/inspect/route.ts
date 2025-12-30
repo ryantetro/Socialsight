@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
 
         // Scoring logic
         let score = 100;
-        const issues = [];
+        const issues: { priority: 'high' | 'medium' | 'low'; message: string; }[] = [];
 
         if (!metadata.ogImage && !metadata.twitterImage) {
             score -= 30;
@@ -80,17 +80,13 @@ export async function POST(req: NextRequest) {
 
         const finalScore = Math.max(0, score);
 
-        // Record stats asynchronously
-        const { createClient } = await import('@/lib/supabase/server');
-        const supabase = await createClient();
-        const stats = await recordScore(finalScore, url, supabase);
-
         // Get/Create Site ID for tracking
-        // We use MD5 or deterministic UUID usually, or lookup by domain
         let siteId = 'pp_' + Math.random().toString(36).substr(2, 9); // Fallback
 
+        const { createClient } = await import('@/lib/supabase/server');
+        const supabase = await createClient();
+
         try {
-            // Check if site exists
             const { data: existingSite } = await supabase
                 .from('analytics_sites')
                 .select('id')
@@ -100,7 +96,6 @@ export async function POST(req: NextRequest) {
             if (existingSite) {
                 siteId = existingSite.id;
             } else {
-                // Create new site
                 siteId = 'pp_' + Math.random().toString(36).substr(2, 9);
                 await supabase.from('analytics_sites').insert({
                     id: siteId,
@@ -111,7 +106,19 @@ export async function POST(req: NextRequest) {
             console.error('Error fetching site ID:', e);
         }
 
-        return NextResponse.json({ metadata, score: finalScore, issues, stats, siteId });
+        // 1. Prepare the full result object
+        const fullResult = {
+            metadata,
+            score: finalScore,
+            issues,
+            siteId
+        };
+
+        // 2. Record score (and save full scan result to DB)
+        const stats = await recordScore(fullResult, url, supabase);
+
+        // 3. Return combined result
+        return NextResponse.json({ ...fullResult, stats });
     } catch (error: unknown) {
         if (error instanceof Error) {
             console.error('Scraping error:', error.message);

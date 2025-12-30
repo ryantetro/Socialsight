@@ -6,7 +6,7 @@ import GuardianSuccess from './GuardianSuccess';
 interface GuardianEnrollmentProps {
     defaultUrl: string;
     siteId: string; // The pp_uuid
-    tier: 'Free' | 'Founder' | 'Growth' | 'Agency';
+    tier: 'Free' | 'Founder' | 'Growth' | 'Agency' | 'ltd';
     onUpgrade: () => void;
     onScansStart?: () => void;
 }

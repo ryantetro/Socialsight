@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 interface GuardianSuccessProps {
     domain: string;
     onDashboardClick: () => void;
-    tier?: 'Free' | 'Founder' | 'Growth' | 'Agency';
+    tier?: 'Free' | 'Founder' | 'Growth' | 'Agency' | 'ltd';
 }
 
 export default function GuardianSuccess({ domain, onDashboardClick, tier = 'Founder' }: GuardianSuccessProps) {
@@ -36,6 +36,7 @@ export default function GuardianSuccess({ domain, onDashboardClick, tier = 'Foun
         'Free': "We'll check your tags once a day.", // Fallback, shouldn't occur in valid flow
         'Founder': "We'll check your tags once a day.",
         'Growth': "Priority monitoring active (Checks every 6h).",
+        'ltd': "Priority monitoring active (Checks every 6h).",
         'Agency': "Multi-channel alerts enabled."
     };
 
