@@ -31,6 +31,7 @@ interface Site {
     created_at: string;
     is_verified?: boolean;
     logo_url?: string;
+    favicon_url?: string;
     site_title?: string;
 }
 
@@ -72,6 +73,7 @@ export default function AnalyticsDashboard() {
     const [metaTitle, setMetaTitle] = useState('');
     const [metaDesc, setMetaDesc] = useState('');
     const [metaImage, setMetaImage] = useState('');
+    const [metaFavicon, setMetaFavicon] = useState('');
     const [isInspecting, setIsInspecting] = useState(false);
 
     // Link Builder State
@@ -101,11 +103,11 @@ export default function AnalyticsDashboard() {
                 .order('created_at', { ascending: false });
 
             if (!error && data) {
-                setSites(data);
-                if (data.length > 0) {
-                    localStorage.setItem('analytics_sites_list', JSON.stringify(data));
-                } else {
-                    localStorage.removeItem('analytics_sites_list');
+                // Check if data actually changed before updating state to avoid blink
+                const dataStr = JSON.stringify(data);
+                if (dataStr !== savedSites) {
+                    setSites(data);
+                    localStorage.setItem('analytics_sites_list', dataStr);
                 }
             }
 
@@ -113,6 +115,75 @@ export default function AnalyticsDashboard() {
         };
         fetchSites();
     }, []);
+
+    // Sync currentSite with sites array (for background updates)
+    useEffect(() => {
+        if (currentSite && sites.length > 0) {
+            const updated = sites.find(s => s.id === currentSite.id);
+            if (updated) {
+                const hasChanged = updated.site_title !== currentSite.site_title ||
+                    updated.logo_url !== currentSite.logo_url ||
+                    updated.favicon_url !== currentSite.favicon_url ||
+                    updated.is_verified !== currentSite.is_verified;
+
+                if (hasChanged) {
+                    setCurrentSite(updated);
+                }
+            }
+        }
+    }, [sites, currentSite]);
+
+    // Branding Auto-Repair: Harvest missing favicons/titles for ANY site in the list
+    useEffect(() => {
+        const repairAllBranding = async () => {
+            // Only repair sites that are verified but missing critical branding
+            const sitesToRepair = sites.filter(s => s.is_verified && (!s.favicon_url || !s.site_title));
+            if (sitesToRepair.length === 0) return;
+
+            for (const site of sitesToRepair) {
+                try {
+                    let inspectUrl = site.domain;
+                    if (!inspectUrl.startsWith('http')) inspectUrl = `https://${inspectUrl}`;
+
+                    const res = await fetch('/api/inspect', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: inspectUrl })
+                    });
+                    const json = await res.json();
+
+                    if (json.metadata?.favicon || json.metadata?.title) {
+                        await supabase
+                            .from('analytics_sites')
+                            .update({
+                                favicon_url: json.metadata.favicon || null,
+                                site_title: json.metadata.title || null,
+                                logo_url: json.metadata.ogImage || null
+                            })
+                            .eq('id', site.id);
+
+                        // Update local state to reflect change immediately
+                        setSites(prev => {
+                            const newSites = prev.map(ps => ps.id === site.id ? {
+                                ...ps,
+                                favicon_url: json.metadata.favicon || ps.favicon_url,
+                                site_title: json.metadata.title || ps.site_title,
+                                logo_url: json.metadata.ogImage || ps.logo_url
+                            } : ps);
+                            localStorage.setItem('analytics_sites_list', JSON.stringify(newSites));
+                            return newSites;
+                        });
+                    }
+                } catch (e) {
+                    console.error('Branding repair failed for', site.domain, e);
+                }
+            }
+        };
+
+        if (sites.length > 0) {
+            repairAllBranding();
+        }
+    }, [sites.length]);
 
     // --- Detail View Logic ---
 
@@ -180,11 +251,10 @@ export default function AnalyticsDashboard() {
             } else {
                 d.setDate(d.getDate() - i);
                 key = d.toLocaleDateString('en-US', { weekday: 'short' });
-                // For 30d, maybe show date like "Oct 12"?
                 if (timeRange === '30d') key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             }
 
-            chartMap.set(key, { name: key, impressions: 0, clicks: 0, timestamp: d.getTime() }); // store timestamp for sorting safely
+            chartMap.set(key, { name: key, impressions: 0, clicks: 0, timestamp: d.getTime() });
         }
 
         eventsData.forEach(e => {
@@ -198,9 +268,6 @@ export default function AnalyticsDashboard() {
                 if (timeRange === '30d') key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             }
 
-            // Simple catch-all for mapping. In production, matching by exact hour/day is safer.
-            // This relies on the label being unique and consistent. 
-            // Better to round the date and keys match exactly, but this works for simple visualization.
             if (chartMap.has(key)) {
                 const entry = chartMap.get(key);
                 if (e.event_type === 'impression') entry.impressions++;
@@ -212,29 +279,22 @@ export default function AnalyticsDashboard() {
 
         // Process Top Sources
         const sourceCounts: Record<string, number> = {};
-        let totalTracked = 0;
-
         eventsData.forEach(e => {
             if (e.event_type === 'page_view') {
                 const src = e.source || 'direct';
                 sourceCounts[src] = (sourceCounts[src] || 0) + 1;
-                totalTracked++;
             }
         });
 
         const sortedSources = Object.entries(sourceCounts)
             .sort(([, a], [, b]) => b - a)
-            .slice(0, 4) // Top 4
+            .slice(0, 4)
             .map(([name, count]) => ({
                 name: name.charAt(0).toUpperCase() + name.slice(1),
-                value: count, // Store raw count for calculation
+                value: count,
                 color: SOURCE_COLORS[name.toLowerCase()] || '#94a3b8'
             }));
 
-        // Convert to percentage relative to totalTracked (or 1 to avoid div by zero)
-        // Adjust value for the UI to be raw percentage or count? The UI used (value / 1000) * 100 which implies value was "out of 1000"
-        // Let's normalize it so the UI code `Math.round((p.value / 1000) * 100)` logic works, OR change the UI logic.
-        // Changing UI logic is cleaner.
         setTopSources(sortedSources);
     };
 
@@ -249,15 +309,14 @@ export default function AnalyticsDashboard() {
         if (!newSiteId) return;
 
         try {
-            const { error } = await supabase
+            await supabase
                 .from('analytics_sites')
                 .update({
                     site_title: metaTitle || null,
-                    logo_url: metaImage || null
+                    logo_url: metaImage || null,
+                    favicon_url: metaFavicon || null
                 })
                 .eq('id', newSiteId);
-
-            if (error) console.error('Error saving branding:', error);
         } catch (e) {
             console.error('Failed to save branding:', e);
         }
@@ -270,10 +329,8 @@ export default function AnalyticsDashboard() {
         if (!trackingUrl) return;
 
         setIsCreatingSite(true);
-        // Generate a new ID
         const siteId = `pp_${crypto.randomUUID().slice(0, 8)}`;
 
-        // Call API
         try {
             const res = await fetch('/api/sites/create', {
                 method: 'POST',
@@ -281,18 +338,16 @@ export default function AnalyticsDashboard() {
                 body: JSON.stringify({
                     domain: trackingUrl,
                     site_id: siteId,
-                    logo_url: metaImage || null
+                    logo_url: metaImage || null,
+                    favicon_url: metaFavicon || null
                 })
             });
             const json = await res.json();
 
             if (json.success) {
                 setNewSiteId(siteId);
-
-                // --- Zero-Friction: Live Site Inspection ---
                 setIsInspecting(true);
                 try {
-                    // Normalize URL for inspector
                     let inspectUrl = trackingUrl;
                     if (!inspectUrl.startsWith('http')) inspectUrl = `https://${inspectUrl}`;
 
@@ -309,34 +364,14 @@ export default function AnalyticsDashboard() {
                         setMetaTitle(m.title || '');
                         setMetaDesc(m.description || '');
                         setMetaImage(m.ogImage || '');
-                    } else {
-                        // Fallback to Smart Pre-fill if live scan fails/is slow
-                        const { data: lastScan } = await supabase
-                            .from('scans')
-                            .select('result')
-                            .ilike('url', `%${trackingUrl}%`)
-                            .order('created_at', { ascending: false })
-                            .limit(1)
-                            .single();
-
-                        if (lastScan?.result) {
-                            const r = lastScan.result;
-                            setMetaTitle(r.title || '');
-                            setMetaDesc(r.description || '');
-                            setMetaImage(r.ogImage || '');
-                        }
+                        setMetaFavicon(m.favicon || '');
                     }
                 } catch (e) {
                     console.error('Inspection failed:', e);
                 } finally {
                     setIsInspecting(false);
                 }
-
                 setSetupStep('checklist');
-
-                // --- Removed Premature Optimistic Update ---
-                // We only add to the dashboard list AFTER successful verification
-                // to prevent junk sites from cluttering the view.
             }
         } catch (err) {
             console.error(err);
@@ -360,45 +395,41 @@ export default function AnalyticsDashboard() {
 
             if (json.success) {
                 setInstallStatus('success');
-
-                // Add to the list now that it's verified
                 const verifiedSite = {
                     id: newSiteId,
                     domain: trackingUrl,
                     created_at: new Date().toISOString(),
-                    is_verified: true
+                    is_verified: true,
+                    site_title: metaTitle || null,
+                    logo_url: metaImage || null,
+                    favicon_url: metaFavicon || null
                 } as Site;
 
                 setSites(prev => [verifiedSite, ...prev]);
                 localStorage.setItem('analytics_sites_list', JSON.stringify([verifiedSite, ...sites]));
 
                 setTimeout(() => {
-                    // Done! Go to detail view
                     setCurrentSite(verifiedSite);
                     setView('detail');
-                    // Reset setup
                     setInstallStatus('waiting');
                     setTrackingUrl('');
                     setNewSiteId('');
                 }, 1500);
             } else {
                 setInstallStatus('error');
-                setVerificationError(json.error || 'Could not find the pixel. Is it installed correctly?');
-                // Allow retry after 3 seconds
+                setVerificationError(json.error || 'Could not find the pixel.');
                 setTimeout(() => setInstallStatus('waiting'), 3000);
             }
         } catch (err) {
             setInstallStatus('error');
-            setVerificationError('Network error. Please try again.');
+            setVerificationError('Network error.');
             setTimeout(() => setInstallStatus('waiting'), 3000);
         }
     };
 
-    // --- Link Builder Logic ---
     const getTrackedLink = () => {
         let base = (currentSite?.domain) || 'yourwebsite.com';
         if (!base.startsWith('http')) base = `https://${base}`;
-
         try {
             const url = new URL(base);
             url.searchParams.set('utm_source', linkBuilderPlatform);
@@ -414,12 +445,8 @@ export default function AnalyticsDashboard() {
         setTimeout(() => setLinkCopied(false), 2000);
     };
 
-    // --- RENDERERS ---
-
-
     // 1. Setup View
     if (view === 'setup') {
-
         return (
             <div className="animate-fade-in space-y-8 min-h-[600px]">
                 <div className="flex items-center gap-4 mb-8">
@@ -430,7 +457,6 @@ export default function AnalyticsDashboard() {
                 </div>
 
                 <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[3rem] p-12 md:p-20 text-center flex flex-col items-center justify-center relative overflow-hidden">
-
                     {setupStep === 'input' && (
                         <div className="max-w-md w-full space-y-8 animate-in slide-in-from-right-8 fade-in duration-500">
                             <div className="space-y-2">
@@ -445,22 +471,15 @@ export default function AnalyticsDashboard() {
                                     value={trackingUrl}
                                     onChange={(e) => setTrackingUrl(e.target.value)}
                                     placeholder="yourwebsite.com"
-                                    className="w-full px-6 py-4 bg-white border-2 border-slate-200 rounded-2xl text-lg font-bold outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all placeholder:text-slate-300 placeholder:font-medium"
+                                    className="w-full px-6 py-4 bg-white border-2 border-slate-200 rounded-2xl text-lg font-bold outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all"
                                     autoFocus
                                 />
                                 <button
                                     type="submit"
                                     disabled={!trackingUrl || isCreatingSite}
-                                    className="w-full px-8 py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 active:scale-95"
+                                    className="w-full px-8 py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
-                                    {isCreatingSite || isInspecting ? (
-                                        <div className="flex flex-col items-center gap-3">
-                                            <Loader2 className="animate-spin text-blue-600" />
-                                            <span className="text-sm font-bold text-slate-500 animate-pulse">
-                                                {isInspecting ? 'Scanning site for existing tags...' : 'Registering site...'}
-                                            </span>
-                                        </div>
-                                    ) : 'Continue'}
+                                    {isCreatingSite || isInspecting ? <Loader2 className="animate-spin text-blue-600" /> : 'Continue'}
                                 </button>
                             </form>
                         </div>
@@ -468,15 +487,10 @@ export default function AnalyticsDashboard() {
 
                     {setupStep === 'checklist' && (
                         <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 animate-in slide-in-from-right-8 fade-in duration-500 text-left">
-                            {/* Left Side: Editor */}
                             <div className="space-y-8">
                                 <div className="space-y-2">
                                     <div className="flex items-center gap-3 mb-2">
-                                        <button
-                                            onClick={() => setSetupStep('input')}
-                                            className="p-1 hover:bg-white rounded-md text-slate-400 hover:text-blue-600 transition-colors"
-                                            title="Back to Step 1"
-                                        >
+                                        <button onClick={() => setSetupStep('input')} className="p-1 hover:bg-white rounded-md text-slate-400 hover:text-blue-600 transition-colors">
                                             <ArrowLeft size={16} />
                                         </button>
                                         <div className="text-xs font-bold uppercase tracking-widest text-blue-600">Step 2 of 3</div>
@@ -492,8 +506,7 @@ export default function AnalyticsDashboard() {
                                             type="text"
                                             value={metaTitle}
                                             onChange={(e) => setMetaTitle(e.target.value)}
-                                            placeholder="The best way to track OG tags"
-                                            className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl font-bold outline-none focus:border-blue-600 transition-all placeholder:text-slate-300"
+                                            className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl font-bold outline-none focus:border-blue-600 transition-all"
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -501,9 +514,8 @@ export default function AnalyticsDashboard() {
                                         <textarea
                                             value={metaDesc}
                                             onChange={(e) => setMetaDesc(e.target.value)}
-                                            placeholder="Boost your social CTR with real-time analytics..."
                                             rows={2}
-                                            className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl font-bold outline-none focus:border-blue-600 transition-all placeholder:text-slate-300 resize-none"
+                                            className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl font-bold outline-none focus:border-blue-600 transition-all resize-none"
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -512,19 +524,12 @@ export default function AnalyticsDashboard() {
                                             type="text"
                                             value={metaImage}
                                             onChange={(e) => setMetaImage(e.target.value)}
-                                            placeholder="https://yoursite.com/og-image.jpg"
-                                            className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl font-bold outline-none focus:border-blue-600 transition-all placeholder:text-slate-300"
+                                            className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl font-bold outline-none focus:border-blue-600 transition-all"
                                         />
                                     </div>
                                 </div>
 
                                 <div className="p-6 bg-blue-50/50 rounded-3xl border border-blue-100/50 space-y-4">
-                                    <div className="flex items-center gap-4 text-sm font-medium text-blue-800">
-                                        <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20">
-                                            <Shield className="text-white" size={20} />
-                                        </div>
-                                        <p>High-fidelity tags are required for accurate impression tracking and social attribution.</p>
-                                    </div>
                                     <button
                                         onClick={handleSaveBranding}
                                         className="w-full px-10 py-5 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-3"
@@ -534,33 +539,8 @@ export default function AnalyticsDashboard() {
                                 </div>
                             </div>
 
-                            {/* Right Side: Preview & Code */}
                             <div className="space-y-6">
-                                <MetaSnippet
-                                    title={metaTitle}
-                                    description={metaDesc}
-                                    image={metaImage}
-                                    url={trackingUrl}
-                                    siteId={newSiteId}
-                                />
-
-                                {/* Link previews */}
-                                <div className="p-6 bg-white border border-slate-100 rounded-[2rem] shadow-sm space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Social Preview</h4>
-                                        <Share2 size={14} className="text-slate-300" />
-                                    </div>
-                                    <div className="flex items-start gap-4 p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                                        <div className="w-16 h-16 bg-white rounded-lg border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
-                                            {metaImage ? <img src={metaImage} className="w-full h-full object-cover" /> : <Globe size={20} className="text-slate-200" />}
-                                        </div>
-                                        <div className="space-y-1 min-w-0">
-                                            <div className="text-sm font-bold text-slate-900 truncate">{metaTitle || 'Page Title'}</div>
-                                            <div className="text-[11px] font-medium text-slate-500 line-clamp-2">{metaDesc || 'Your page description will appear here...'}</div>
-                                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tight truncate">{trackingUrl || 'yourwebsite.com'}</div>
-                                        </div>
-                                    </div>
-                                </div>
+                                <MetaSnippet title={metaTitle} description={metaDesc} image={metaImage} url={trackingUrl} siteId={newSiteId} />
                             </div>
                         </div>
                     )}
@@ -569,26 +549,16 @@ export default function AnalyticsDashboard() {
                         <div className="max-w-4xl w-full space-y-8 animate-in slide-in-from-right-8 fade-in duration-500 text-left">
                             <div className="space-y-2">
                                 <div className="flex items-center gap-3 mb-2">
-                                    <button
-                                        onClick={() => setSetupStep('checklist')}
-                                        className="p-1 hover:bg-white rounded-md text-slate-400 hover:text-blue-600 transition-colors"
-                                        title="Back to Step 2"
-                                    >
+                                    <button onClick={() => setSetupStep('checklist')} className="p-1 hover:bg-white rounded-md text-slate-400 hover:text-blue-600 transition-colors">
                                         <ArrowLeft size={16} />
                                     </button>
                                     <div className="text-xs font-bold uppercase tracking-widest text-blue-600">Step 3 of 3</div>
                                 </div>
                                 <h3 className="text-2xl font-black text-slate-900">Install Tracking Script</h3>
-                                <p className="text-slate-500 font-medium">Add this code to the <code className="bg-slate-200 px-1.5 py-0.5 rounded text-slate-700 font-mono text-sm">&lt;head&gt;</code> of <b>{trackingUrl}</b>.</p>
+                                <p className="text-slate-500 font-medium">Add this code to the &lt;head&gt; of {trackingUrl}.</p>
                             </div>
 
-                            <MetaSnippet
-                                title={metaTitle}
-                                description={metaDesc}
-                                image={metaImage}
-                                url={trackingUrl}
-                                siteId={newSiteId}
-                            />
+                            <MetaSnippet title={metaTitle} description={metaDesc} image={metaImage} url={trackingUrl} siteId={newSiteId} />
 
                             <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
                                 <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
@@ -601,34 +571,24 @@ export default function AnalyticsDashboard() {
                                                 "w-3 h-3 rounded-full",
                                                 installStatus === 'waiting' ? "bg-yellow-400 animate-pulse" :
                                                     installStatus === 'verifying' ? "bg-blue-600 animate-bounce" :
-                                                        installStatus === 'error' ? "bg-red-500" :
-                                                            "bg-green-500"
+                                                        installStatus === 'error' ? "bg-red-500" : "bg-green-500"
                                             )} />
                                             <span className="text-sm font-bold text-slate-900">
-                                                {installStatus === 'waiting' ? "Waiting for installation..." :
-                                                    installStatus === 'verifying' ? "Verifying connection..." :
-                                                        installStatus === 'error' ? "Verification Failed" :
-                                                            "Connected successfully!"}
+                                                {installStatus === 'waiting' ? "Waiting..." : installStatus === 'verifying' ? "Checking..." : installStatus === 'error' ? "Failed" : "Connected!"}
                                             </span>
                                         </div>
-                                        {verificationError && (
-                                            <p className="text-xs text-red-500 font-medium bg-red-50 p-2 rounded-lg border border-red-100">
-                                                {verificationError}
-                                            </p>
-                                        )}
                                     </div>
                                     <button
                                         onClick={startVerification}
                                         disabled={installStatus === 'verifying' || installStatus === 'success'}
                                         className={cn(
-                                            "px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2",
-                                            installStatus === 'success' ? "bg-green-500 text-white" :
-                                                "bg-slate-900 text-white hover:bg-black disabled:opacity-50"
+                                            "px-6 py-2.5 rounded-xl font-bold text-sm transition-all",
+                                            installStatus === 'success' ? "bg-green-500 text-white" : "bg-slate-900 text-white hover:bg-black"
                                         )}
                                     >
-                                        {installStatus === 'waiting' && <>Verify Installation <ArrowUpRight size={16} /></>}
-                                        {installStatus === 'verifying' && <>Checking...</>}
-                                        {installStatus === 'success' && <><Check size={16} /> Verified</>}
+                                        {installStatus === 'waiting' && 'Verify Installation'}
+                                        {installStatus === 'verifying' && 'Checking...'}
+                                        {installStatus === 'success' && 'Verified'}
                                     </button>
                                 </div>
                             </div>
@@ -656,9 +616,6 @@ export default function AnalyticsDashboard() {
                     >
                         <Plus size={18} /> Connect New Site
                     </button>
-
-                    {/* Background decoration */}
-                    <div className="hidden md:block absolute top-0 right-0 p-32 bg-slate-50 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
                 </div>
 
                 {isLoadingSites ? (
@@ -667,12 +624,10 @@ export default function AnalyticsDashboard() {
                     <>
                         {sites.length === 0 ? (
                             <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[3rem] p-8 md:p-20 text-center flex flex-col items-center justify-center min-h-[400px]">
-                                <div className="w-20 h-20 md:w-24 md:h-24 bg-white rounded-3xl shadow-xl shadow-blue-900/5 flex items-center justify-center mx-auto rotate-3 mb-6 md:mb-8">
-                                    <BarChart3 className="w-8 h-8 md:w-10 md:h-10 text-blue-600" />
-                                </div>
+                                <BarChart3 className="w-10 h-10 text-blue-600 mb-6" />
                                 <h3 className="text-xl md:text-2xl font-black text-slate-900 mb-2">Unlock Your Data</h3>
                                 <p className="text-slate-500 font-medium text-base md:text-lg leading-relaxed max-w-md mx-auto mb-8">
-                                    Install our smart tracking pixel to see real-time social traffic, click-through rates, and conversion metrics.
+                                    Install our smart tracking pixel to see real-time social traffic and conversion metrics.
                                 </p>
                                 <button
                                     onClick={handleStartSetup}
@@ -694,14 +649,18 @@ export default function AnalyticsDashboard() {
 
                                         <div className="p-6 md:p-8 relative z-10">
                                             <div className="flex items-start justify-between mb-6">
-                                                <div className="w-12 h-12 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
-                                                    {/* Prioritize site logo, fallback to Google favicon */}
+                                                <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center overflow-hidden shrink-0">
                                                     <img
-                                                        src={site.logo_url || `https://www.google.com/s2/favicons?domain=${site.domain}&sz=128`}
-                                                        alt={`${site.domain} logo`}
-                                                        className="w-full h-full object-cover"
+                                                        src={site.favicon_url || (site.domain.includes('socialsight.dev') ? '/favicon.png' : `https://${site.domain}/favicon.ico`)}
+                                                        alt=""
+                                                        className="w-5 h-5 rounded object-contain"
                                                         onError={(e) => {
-                                                            (e.target as HTMLImageElement).src = `https://www.google.com/s2/favicons?domain=${site.domain}&sz=128`;
+                                                            const target = e.target as HTMLImageElement;
+                                                            if (site.domain.includes('socialsight.dev')) {
+                                                                target.src = '/favicon.png';
+                                                            } else {
+                                                                target.src = `https://www.google.com/s2/favicons?domain=${site.domain}&sz=64`;
+                                                            }
                                                         }}
                                                     />
                                                 </div>
@@ -710,12 +669,12 @@ export default function AnalyticsDashboard() {
                                                 </div>
                                             </div>
 
-                                            <h3 className="text-lg md:text-xl font-bold text-slate-900 mb-1 truncate">{site.domain}</h3>
-                                            <div className="flex items-center gap-2 mb-6">
+                                            <h3 className="text-lg md:text-xl font-bold text-slate-900 mb-1 truncate">
+                                                {site.site_title || site.domain}
+                                            </h3>
+                                            <div className="flex items-center gap-2 mb-6 text-slate-500 font-medium text-xs">
                                                 <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
-                                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-green-600 transition-colors">
-                                                    Live Tracking
-                                                </span>
+                                                <span className="truncate">{site.domain}</span>
                                             </div>
 
                                             <div className="flex items-end gap-1 h-8 opacity-20 grayscale group-hover:grayscale-0 group-hover:opacity-40 transition-all">
@@ -737,7 +696,6 @@ export default function AnalyticsDashboard() {
     // 3. Detail View (Dashboard)
     if (!currentSite) return null;
 
-    // --- Verification Guard ---
     if (!currentSite.is_verified) {
         return (
             <div className="animate-fade-in space-y-8 pb-32">
@@ -749,36 +707,22 @@ export default function AnalyticsDashboard() {
                 </button>
 
                 <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 p-12 flex flex-col items-center text-center space-y-6">
-                    <div className="w-20 h-20 bg-blue-50 rounded-[2rem] flex items-center justify-center relative shadow-inner">
-                        <Shield className="text-blue-600" size={40} strokeWidth={1.5} />
-                        <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full border-4 border-white flex items-center justify-center animate-bounce">
-                            <Activity size={10} className="text-white" />
-                        </div>
-                    </div>
+                    <Shield className="text-blue-600" size={40} />
                     <div className="space-y-2 max-w-md">
                         <h2 className="text-3xl font-black text-slate-900">Activation Required</h2>
                         <p className="text-slate-500 font-medium">Analytics are locked for <b>{currentSite.domain}</b> because the tracking pixel hasn't been verified yet.</p>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-4">
-                        <button
-                            onClick={() => {
-                                setTrackingUrl(currentSite.domain);
-                                setNewSiteId(currentSite.id);
-                                setInstallStatus('waiting');
-                                setSetupStep('checklist');
-                                setView('setup');
-                            }}
-                            className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 active:scale-95 flex items-center gap-2"
-                        >
-                            Resume Setup <ArrowUpRight size={18} />
-                        </button>
-                        <button
-                            onClick={() => setView('list')}
-                            className="px-8 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all active:scale-95"
-                        >
-                            Maybe Later
-                        </button>
-                    </div>
+                    <button
+                        onClick={() => {
+                            setTrackingUrl(currentSite.domain);
+                            setNewSiteId(currentSite.id);
+                            setSetupStep('checklist');
+                            setView('setup');
+                        }}
+                        className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 active:scale-95"
+                    >
+                        Resume Setup
+                    </button>
                 </div>
             </div>
         );
@@ -786,11 +730,7 @@ export default function AnalyticsDashboard() {
 
     return (
         <div className="space-y-6 md:space-y-8 animate-fade-in pb-32">
-            {/* Header / Nav */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm animate-fade-in relative overflow-hidden group">
-                {/* Visual Accent */}
-                <div className="absolute top-0 right-0 p-32 bg-blue-500/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none group-hover:bg-blue-500/10 transition-colors" />
-
                 <div className="flex items-start gap-6 relative z-10 w-full lg:w-auto">
                     <button
                         onClick={() => setView('list')}
@@ -800,46 +740,41 @@ export default function AnalyticsDashboard() {
                     </button>
 
                     <div className="space-y-1.5 min-w-0 flex-1">
-                        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                            <Activity size={12} className="text-blue-500" /> Tracking Website
-                        </span>
+                        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Scanning Website</span>
                         <h2 className="text-4xl font-black text-slate-900 tracking-tight line-clamp-1">
                             {currentSite?.site_title || currentSite?.domain}
                         </h2>
-                        <div className="flex items-center text-slate-500 font-bold italic text-sm">
-                            <div className="w-5 h-5 rounded-md border border-slate-100 shadow-sm p-0.5 mr-2 shrink-0 bg-white">
-                                <img
-                                    src={currentSite?.logo_url || `https://www.google.com/s2/favicons?domain=${currentSite?.domain}&sz=128`}
-                                    alt="site logo"
-                                    className="w-full h-full object-cover rounded-[2px]"
-                                    onError={(e) => {
-                                        (e.target as HTMLImageElement).src = `https://www.google.com/s2/favicons?domain=${currentSite?.domain}&sz=128`;
-                                    }}
-                                />
-                            </div>
+                        <div className="flex items-center text-slate-500 font-semibold italic">
+                            <img
+                                src={currentSite?.favicon_url || (currentSite?.domain.includes('socialsight.dev') ? '/favicon.png' : `https://${currentSite?.domain}/favicon.ico`)}
+                                alt=""
+                                className="w-5 h-5 rounded mr-2 shrink-0 object-contain"
+                                onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    if (currentSite?.domain.includes('socialsight.dev')) {
+                                        target.src = '/favicon.png';
+                                    } else {
+                                        target.src = `https://www.google.com/s2/favicons?domain=${currentSite?.domain}&sz=64`;
+                                    }
+                                }}
+                            />
                             <span className="opacity-75">{currentSite?.domain}</span>
                             <span className="mx-3 text-slate-200 not-italic">|</span>
-                            <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full not-italic text-[10px] uppercase tracking-wider flex items-center gap-1.5 shrink-0 whitespace-nowrap border border-green-200">
-                                <span className="relative flex h-1.5 w-1.5">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
-                                </span>
+                            <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full not-italic text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shrink-0 whitespace-nowrap border border-green-100">
                                 Live Feed
                             </span>
                         </div>
                     </div>
                 </div>
 
-                <div className="w-full lg:w-auto flex bg-slate-100 p-1 rounded-2xl relative z-10 shadow-inner">
+                <div className="w-full lg:w-auto flex bg-slate-50 p-1 rounded-2l border border-slate-100 relative z-10">
                     {['24h', '7d', '30d'].map((range) => (
                         <button
                             key={range}
                             onClick={() => setTimeRange(range)}
                             className={cn(
-                                "flex-1 lg:flex-none px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all text-center",
-                                timeRange === range
-                                    ? "bg-white text-blue-600 shadow-xl shadow-blue-500/10 scale-[1.02]"
-                                    : "text-slate-500 hover:text-slate-800"
+                                "flex-1 lg:flex-none px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-center",
+                                timeRange === range ? "bg-white text-blue-600 shadow-sm border border-slate-200/50" : "text-slate-400 hover:text-slate-600"
                             )}
                         >
                             {range}
@@ -848,58 +783,26 @@ export default function AnalyticsDashboard() {
                 </div>
             </div>
 
-            {/* Smart Link Builder using current Site */}
             <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden relative">
-                <div className="absolute top-0 right-0 p-32 bg-indigo-500/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
-
                 <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-8 relative z-10">
                     <div className="space-y-2 max-w-lg">
                         <h3 className="text-lg md:text-xl font-bold text-slate-900 flex items-center gap-2">
                             <Share2 className="text-indigo-600" size={20} /> Smart Link Builder
                         </h3>
-                        <p className="text-slate-500 font-medium text-sm">
-                            Generate a smart link for the platform you are sharing on to track it properly.
-                        </p>
+                        <p className="text-slate-500 font-medium text-sm">Generate a tracked link for sharing.</p>
                     </div>
 
                     <div className="flex flex-col gap-4 w-full xl:w-auto">
-                        {/* Mobile Grid / Desktop Flex */}
-                        <div className="grid grid-cols-2 sm:flex bg-slate-100 p-1 rounded-xl w-full">
-                            {[
-                                { id: 'imessage', icon: MessageCircle, label: 'iMessage' },
-                                { id: 'whatsapp', icon: Smartphone, label: 'WhatsApp' },
-                                { id: 'email', icon: Mail, label: 'Email' },
-                                { id: 'other', icon: Globe, label: 'Other' },
-                            ].map((p) => (
-                                <button
-                                    key={p.id}
-                                    onClick={() => setLinkBuilderPlatform(p.id)}
-                                    className={cn(
-                                        "px-3 md:px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all",
-                                        linkBuilderPlatform === p.id
-                                            ? "bg-white text-indigo-600 shadow-sm"
-                                            : "text-slate-500 hover:text-slate-900"
-                                    )}
-                                    title={p.label}
-                                >
-                                    <p.icon size={16} />
-                                    <span className="inline">{p.label}</span>
+                        <div className="flex bg-slate-100 p-1 rounded-xl w-full">
+                            {[{ id: 'imessage', icon: MessageCircle, label: 'iMessage' }, { id: 'whatsapp', icon: Smartphone, label: 'WhatsApp' }, { id: 'email', icon: Mail, label: 'Email' }, { id: 'other', icon: Globe, label: 'Other' }].map((p) => (
+                                <button key={p.id} onClick={() => setLinkBuilderPlatform(p.id)} className={cn("px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all", linkBuilderPlatform === p.id ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500")}>
+                                    <p.icon size={16} /> <span className="hidden sm:inline">{p.label}</span>
                                 </button>
                             ))}
                         </div>
-
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full">
-                            <code className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 text-xs md:text-sm font-mono flex-1 overflow-x-auto whitespace-nowrap scrollbar-hide">
-                                ?utm_source={linkBuilderPlatform}
-                            </code>
-                            <button
-                                onClick={handleCopyLink}
-                                className={cn(
-                                    "px-4 py-3 rounded-xl font-bold text-sm text-white transition-all flex items-center justify-center gap-2 whitespace-nowrap shadow-lg active:scale-95",
-                                    linkCopied ? "bg-green-500 shadow-green-500/20" : "bg-slate-900 hover:bg-black shadow-slate-900/20"
-                                )}
-                            >
-                                {linkCopied ? <Check size={16} /> : <Copy size={16} />}
+                        <div className="flex items-center gap-2">
+                            <code className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 text-xs font-mono flex-1 truncate">?utm_source={linkBuilderPlatform}</code>
+                            <button onClick={handleCopyLink} className={cn("px-4 py-3 rounded-xl font-bold text-sm text-white transition-all shadow-lg", linkCopied ? "bg-green-500" : "bg-slate-900")}>
                                 {linkCopied ? 'Copied!' : 'Copy Link'}
                             </button>
                         </div>
@@ -907,71 +810,29 @@ export default function AnalyticsDashboard() {
                 </div>
             </div>
 
-            {/* The Big Three Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-                <div className="bg-slate-900 text-white p-6 md:p-8 rounded-3xl relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-24 md:p-32 bg-blue-500/10 rounded-full blur-3xl -mr-10 -mt-10 md:-mr-16 md:-mt-16 transition-all group-hover:bg-blue-500/20" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-slate-900 text-white p-8 rounded-3xl relative overflow-hidden">
                     <div className="relative z-10">
-                        <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4 text-slate-400 font-bold uppercase tracking-widest text-[10px] md:text-xs">
-                            <Eye size={14} /> Total Impressions
-                        </div>
-                        <div className="text-4xl md:text-5xl font-black tracking-tight mb-2">
-                            {(totals.impressions / 1000).toFixed(1)}k
-                        </div>
-                        <div className="flex items-center gap-2 text-green-400 font-bold text-xs md:text-sm">
-                            <ArrowUpRight size={14} /> Live Tracking
-                        </div>
+                        <div className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-4">Total Impressions</div>
+                        <div className="text-5xl font-black">{(totals.impressions / 1000).toFixed(1)}k</div>
                     </div>
                 </div>
-
-                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-24 md:p-32 bg-green-500/5 rounded-full blur-3xl -mr-10 -mt-10 md:-mr-16 md:-mt-16 transition-all group-hover:bg-green-500/10" />
-                    <div className="relative z-10">
-                        <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4 text-slate-400 font-bold uppercase tracking-widest text-[10px] md:text-xs">
-                            <MousePointer2 size={14} /> Unique Clicks
-                        </div>
-                        <div className="text-4xl md:text-5xl font-black tracking-tight mb-2 text-slate-900">
-                            {totals.clicks.toLocaleString()}
-                        </div>
-                        <div className="flex items-center gap-2 text-green-600 font-bold text-xs md:text-sm">
-                            <ArrowUpRight size={14} /> Tracking Active
-                        </div>
-                    </div>
+                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-4">Unique Clicks</div>
+                    <div className="text-5xl font-black text-slate-900">{totals.clicks.toLocaleString()}</div>
                 </div>
-
-                <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-24 md:p-32 bg-purple-500/5 rounded-full blur-3xl -mr-10 -mt-10 md:-mr-16 md:-mt-16 transition-all group-hover:bg-purple-500/10" />
-                    <div className="relative z-10">
-                        <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4 text-slate-400 font-bold uppercase tracking-widest text-[10px] md:text-xs">
-                            <TrendingUp size={14} /> Avg. CTR
-                        </div>
-                        <div className="text-4xl md:text-5xl font-black tracking-tight mb-2 text-slate-900">
-                            {totals.ctr.toFixed(1)}%
-                        </div>
-                        <div className="flex items-center gap-2 text-slate-400 font-bold text-xs md:text-sm">
-                            <div className="flex items-center gap-2 text-slate-400 font-bold text-xs md:text-sm">
-                                <span className="text-slate-300">Based on unique visits</span>
-                            </div>
-                        </div>
-                    </div>
+                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-4">Avg. CTR</div>
+                    <div className="text-5xl font-black text-slate-900">{totals.ctr.toFixed(1)}%</div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-                {/* Main Area Chart */}
-                <div className="lg:col-span-2 bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-200 shadow-sm relative overflow-hidden">
-                    <div className="flex items-center justify-between mb-8">
-                        <h3 className="text-xl font-bold text-slate-900">Performance History</h3>
-                        {/* Legend / Status */}
-                        <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Impressions</span>
-                        </div>
-                    </div>
-
-                    <div className="h-[250px] md:h-[300px] w-full md:ml-0">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                    <h3 className="text-xl font-bold text-slate-900 mb-8">Performance History</h3>
+                    <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={stats} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <AreaChart data={stats}>
                                 <defs>
                                     <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
@@ -979,44 +840,20 @@ export default function AnalyticsDashboard() {
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis
-                                    dataKey="name"
-                                    axisLine={false}
-                                    tickLine={false}
-                                    tick={{ fill: '#94a3b8', fontSize: 10 }}
-                                    dy={10}
-                                    interval="preserveStartEnd"
-                                />
-                                <YAxis
-                                    axisLine={false}
-                                    tickLine={false}
-                                    tick={{ fill: '#94a3b8', fontSize: 10 }}
-                                    width={30}
-                                />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.1)' }}
-                                    cursor={{ stroke: '#3b82f6', strokeWidth: 2 }}
-                                />
-                                <Area
-                                    type="monotone"
-                                    dataKey="impressions"
-                                    stroke="#3b82f6"
-                                    strokeWidth={3}
-                                    fillOpacity={1}
-                                    fill="url(#colorImpressions)"
-                                    animationDuration={1500}
-                                />
+                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} dy={10} />
+                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} width={30} />
+                                <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.1)' }} />
+                                <Area type="monotone" dataKey="impressions" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorImpressions)" />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
 
-                {/* Platform Breakdown & Live Feed */}
                 <div className="space-y-6">
-                    <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
                         <h3 className="text-xl font-bold text-slate-900 mb-6">Traffic Sources</h3>
                         <div className="space-y-4">
-                            {topSources.length > 0 ? topSources.map((p, i) => {
+                            {topSources.map((p, i) => {
                                 const safePercent = totals.clicks > 0 ? Math.round((p.value / totals.clicks) * 100) : 0;
                                 return (
                                     <div key={i} className="space-y-2">
@@ -1025,48 +862,32 @@ export default function AnalyticsDashboard() {
                                             <span className="text-slate-900">{safePercent}%</span>
                                         </div>
                                         <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                                            <div
-                                                className="h-full rounded-full transition-all duration-1000"
-                                                style={{ width: `${safePercent}%`, backgroundColor: p.color }}
-                                            />
+                                            <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${safePercent}%`, backgroundColor: p.color }} />
                                         </div>
                                     </div>
                                 )
-                            }) : (
-                                <div className="text-slate-400 text-sm italic py-4 text-center">No traffic data yet.</div>
-                            )}
+                            })}
                         </div>
                     </div>
 
-                    <div className="bg-zinc-950 p-6 rounded-[2rem] text-white overflow-hidden relative min-h-[200px] shadow-xl shadow-zinc-900/20">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="font-bold flex items-center gap-2 text-xs uppercase tracking-widest text-zinc-500">
-                                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /> Live Feed
-                            </h3>
-                            <span className="text-[10px] font-bold bg-zinc-900 px-2 py-1 rounded-full text-zinc-600">Real-time</span>
-                        </div>
-                        <div className="space-y-4 relative z-10">
+                    <div className="bg-zinc-950 p-6 rounded-[2rem] text-white min-h-[200px] shadow-xl">
+                        <h3 className="font-bold flex items-center gap-2 text-xs uppercase tracking-widest text-zinc-500 mb-6">
+                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /> Live Feed
+                        </h3>
+                        <div className="space-y-4">
                             {events.map((item, i) => (
-                                <div key={item.timestamp + i} className="flex items-center gap-3 text-sm animate-fade-in-up" style={{ animationDelay: `${i * 100}ms` }}>
-                                    <div className="w-8 h-8 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center font-black text-xs shrink-0">
-                                        {item.platform[0]}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex items-baseline justify-between">
-                                            <span className="font-bold text-zinc-200 truncate">{item.platform}Bot</span>
-                                            <span className="text-[10px] text-zinc-600 font-mono shrink-0 ml-2">{item.time}</span>
+                                <div key={i} className="flex items-center gap-3 text-sm">
+                                    <div className="w-8 h-8 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center font-black text-xs shrink-0">{item.platform[0]}</div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between items-baseline">
+                                            <span className="font-bold text-zinc-200">{item.platform}Bot</span>
+                                            <span className="text-[10px] text-zinc-600 font-mono">{item.time}</span>
                                         </div>
-                                        <div className="text-zinc-500 text-xs truncate">{item.action}</div>
+                                        <div className="text-zinc-500 text-xs">{item.action}</div>
                                     </div>
                                 </div>
                             ))}
-                            {events.length === 0 && (
-                                <div className="text-zinc-600 text-xs text-center py-8 italic">Waiting for traffic...</div>
-                            )}
                         </div>
-
-                        {/* Overlay Gradient at bottom */}
-                        <div className="absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-zinc-950 to-transparent pointer-events-none" />
                     </div>
                 </div>
             </div>

@@ -8,11 +8,13 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { domain, site_id, user_id, logo_url, site_title } = body;
+        const { domain, site_id, user_id, logo_url, site_title, favicon_url } = body;
 
         if (!domain || !site_id) {
             return NextResponse.json({ error: 'Missing domain or site_id' }, { status: 400 });
         }
+
+        console.log('Creating site:', { domain, site_id, user_id, logo_url, site_title, favicon_url });
 
         const { data, error } = await supabase
             .from('analytics_sites')
@@ -21,7 +23,8 @@ export async function POST(request: Request) {
                 domain,
                 user_id: user_id || null,
                 logo_url: logo_url || null,
-                site_title: site_title || null
+                site_title: site_title || null,
+                favicon_url: favicon_url || null
             })
             .select()
             .single();
