@@ -1,5 +1,9 @@
 
-const apiKey = "AIzaSyCWrnIgpY36Z7uxY-xNglcgrXjjVgBQIAQ";
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
+    console.error("GEMINI_API_KEY is not set");
+    process.exit(1);
+}
 // Trying standard Imagen 3 endpoint this time
 const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${apiKey}`;
 

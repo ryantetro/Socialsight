@@ -12,6 +12,9 @@ export const metadata: Metadata = {
     description: 'Preview how your website looks on social media.',
     type: 'website',
   },
+  icons: {
+    icon: '/favicon.png',
+  },
 };
 
 export default function RootLayout({

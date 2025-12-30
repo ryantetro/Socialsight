@@ -1,5 +1,10 @@
 
-const apiKey = "AIzaSyCWrnIgpY36Z7uxY-xNglcgrXjjVgBQIAQ";
+
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
+    console.error("GEMINI_API_KEY environment variable is not set.");
+    process.exit(1);
+}
 const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
 
 async function listModels() {

@@ -14,8 +14,10 @@ export async function POST(req: Request) {
         }
 
         const { priceId, view } = await req.json();
+        console.log(`[STRIPE_DEBUG] Checkout request for priceId: ${priceId}, view: ${view}`);
 
         if (!priceId) {
+            console.error('[STRIPE_DEBUG] Error: priceId is missing');
             return new NextResponse(JSON.stringify({ error: "Missing priceId" }), { status: 400 });
         }
 
@@ -39,8 +41,12 @@ export async function POST(req: Request) {
         });
 
         return NextResponse.json({ url: session.url });
-    } catch (error) {
-        console.error("[STRIPE_ERROR]", error);
-        return new NextResponse(JSON.stringify({ error: "Internal Error", details: error instanceof Error ? error.message : "Unknown error" }), { status: 500 });
+    } catch (error: any) {
+        console.error("[STRIPE_ERROR] Full error:", error);
+        return new NextResponse(JSON.stringify({
+            error: "Internal Error",
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        }), { status: 500 });
     }
 }

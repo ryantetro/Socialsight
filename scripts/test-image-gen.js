@@ -1,5 +1,9 @@
 
-const apiKey = "AIzaSyCWrnIgpY36Z7uxY-xNglcgrXjjVgBQIAQ";
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
+    console.error("GEMINI_API_KEY is not set");
+    process.exit(1);
+}
 const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${apiKey}`;
 // Note: The model list showed 'nano-banana-pro-preview' and 'imagen-4.0'. 
 // Let's try 'imagen-3.0-generate-001' first as it's standard, if not we try nano.
