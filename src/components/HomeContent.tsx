@@ -66,6 +66,9 @@ export default function HomeContent() {
     ? (isDebugSignedOut ? 'free' : debugTier.tier)
     : (profile?.tier || 'free');
 
+  // BLOCKING: If auth is loading (fetching profile), show loader.
+  // This prevents the "Free Tier" flash and ensures 'Agency' is ready before rendering content.
+
   // Recalculate permissions based on effective tier
   const permissions = {
     canMonitor: effectiveTier !== 'free' && !isDebugSignedOut,
@@ -338,6 +341,18 @@ export default function HomeContent() {
     { id: 'analytics', icon: PieChart, label: 'Analytics', visible: true },
     { id: 'history', icon: Clock, label: 'History', visible: true }
   ].filter(tab => tab.visible);
+
+  // BLOCKING: If auth is loading (fetching profile), show loader.
+  // This prevents the "Free Tier" flash and ensures 'Agency' is ready before rendering content.
+  // Placed HERE to avoid React Hook Order errors (hooks must be called unconditionally).
+  if (authLoading && !debugTier.active) {
+    return <div className="min-h-screen flex items-center justify-center bg-[#fafafa]">
+      <div className="flex flex-col items-center gap-4 animate-fade-in">
+        <div className="w-12 h-12 border-4 border-blue-600/30 border-t-blue-600 rounded-full animate-spin"></div>
+        <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Loading Profile...</p>
+      </div>
+    </div>;
+  }
 
   return (
     <main className="min-h-screen bg-[#fafafa]">

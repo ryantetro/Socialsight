@@ -24,6 +24,20 @@ export function useProfile() {
     useEffect(() => {
         let mounted = true;
 
+        // OPTIMIZATION: Check for cached profile instantly
+        const cachedProfile = localStorage.getItem('socialsight_user_profile');
+        if (cachedProfile) {
+            try {
+                const parsed = JSON.parse(cachedProfile);
+                setProfile(parsed);
+                // If we have a cached profile, we are "not loading" (optimistic)
+                // But we still fetch deeply to update tier if changed
+                setLoading(false);
+            } catch (e) {
+                // Ignore parse errors
+            }
+        }
+
         const init = async () => {
             try {
                 // Timeout wrapper for getUser
@@ -37,8 +51,11 @@ export function useProfile() {
 
                 if (mounted) {
                     setUser(user);
-                    // Do NOT set loading to false here. Wait for profile.
-                    // setLoading(false); 
+                    if (!user) {
+                        // If signed out, confirm loading is done
+                        setLoading(false);
+                        localStorage.removeItem('socialsight_user_profile');
+                    }
                 }
 
                 if (user) {
@@ -61,6 +78,7 @@ export function useProfile() {
                 if (mounted) {
                     setProfile(null);
                     setLoading(false);
+                    localStorage.removeItem('socialsight_user_profile');
                 }
             }
         });
@@ -86,6 +104,7 @@ export function useProfile() {
 
             if (!error && data) {
                 setProfile(data as Profile);
+                localStorage.setItem('socialsight_user_profile', JSON.stringify(data));
             }
         } catch (e) {
             console.error("Error fetching profile", e);

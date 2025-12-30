@@ -2,8 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 // Initialize Supabase client
+// Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(request: Request) {
@@ -48,15 +49,19 @@ export async function POST(request: Request) {
             else source = 'referral';
         }
 
+        // Normalize event_type to match DB Enum
+        let normalizedEventType = event_type;
+        if (event_type === 'pageview') normalizedEventType = 'page_view';
+
         // Insert into Supabase
         const { error } = await supabase
             .from('analytics_events')
             .insert({
                 site_id,
-                event_type,
+                event_type: normalizedEventType,
                 path,
                 referrer,
-                user_agent: userAgent, // Optional: store generic UA string if needed, or truncate for privacy
+                user_agent: userAgent,
                 country,
                 is_bot: isBot,
                 source
@@ -64,7 +69,7 @@ export async function POST(request: Request) {
 
         if (error) {
             console.error('Supabase Error:', error);
-            return NextResponse.json({ error: 'Error recording event' }, { status: 500, headers });
+            return NextResponse.json({ error: 'Error recording event: ' + error.message }, { status: 500, headers });
         }
 
         return NextResponse.json({ success: true }, { status: 200, headers });
