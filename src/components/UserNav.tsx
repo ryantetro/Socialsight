@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import PlanPill from './PlanPill';
 import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 interface UserNavProps {
     user: User;
@@ -21,6 +22,7 @@ interface UserNavProps {
 
 export default function UserNav({ user, tier, isPaid, onViewReport, onViewHistory, onViewDashboard, onViewAnalytics, isLoading }: UserNavProps) {
     const [isOpen, setIsOpen] = useState(false);
+    const router = useRouter();
 
     const handleSignOut = async () => {
         const supabase = createClient();
@@ -69,7 +71,7 @@ export default function UserNav({ user, tier, isPaid, onViewReport, onViewHistor
                             if (onViewDashboard) {
                                 onViewDashboard();
                             } else {
-                                window.location.href = '/?view=monitor';
+                                router.push('/?view=monitor');
                             }
                         }}
                         className="w-full text-left px-3 py-2 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-2 transition-colors"
@@ -83,7 +85,7 @@ export default function UserNav({ user, tier, isPaid, onViewReport, onViewHistor
                             if (onViewAnalytics) {
                                 onViewAnalytics();
                             } else {
-                                window.location.href = '/?view=analytics';
+                                router.push('/?view=analytics');
                             }
                         }}
                         className="w-full text-left px-3 py-2 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-2 transition-colors"
@@ -97,7 +99,7 @@ export default function UserNav({ user, tier, isPaid, onViewReport, onViewHistor
                             if (onViewHistory) {
                                 onViewHistory();
                             } else {
-                                window.location.href = '/?view=history';
+                                router.push('/?view=history');
                             }
                         }}
                         className="w-full text-left px-3 py-2 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-2 transition-colors"
@@ -113,7 +115,7 @@ export default function UserNav({ user, tier, isPaid, onViewReport, onViewHistor
                             if (onViewReport) {
                                 onViewReport();
                             } else {
-                                window.location.href = '/dashboard';
+                                router.push('/dashboard');
                             }
                         }}
                         disabled={isLoading}
@@ -132,7 +134,7 @@ export default function UserNav({ user, tier, isPaid, onViewReport, onViewHistor
                     <button
                         onClick={() => {
                             setIsOpen(false);
-                            window.location.href = '/#pricing';
+                            router.push('/#pricing');
                         }}
                         className="w-full text-left px-3 py-2 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-2 transition-colors"
                     >

@@ -53,17 +53,33 @@
     }
 
     // Capture Clicks
+    // Capture Clicks
     document.addEventListener('click', (e) => {
+        // 1. Check for standard Links
         const link = e.target.closest('a');
-        if (!link) return;
 
-        // Ignore internal hash links
-        if (link.hash && link.pathname === window.location.pathname) return;
+        // 2. Check for tracked elements (buttons, divs, etc.)
+        const trackedElement = e.target.closest('[data-track]');
 
-        // Determine if outbound or important
-        const isOutbound = link.hostname !== window.location.hostname;
+        if (!link && !trackedElement) return;
 
-        // Track unique click
+        // Priority to tracked element if both exist (unlikely but possible)
+        const target = trackedElement || link;
+        const isLink = !!link;
+
+        // If it's a link, ignore internal hash jumps unless explicitly tracked
+        if (isLink && !trackedElement && link.hash && link.pathname === window.location.pathname) return;
+
+        // Determine destination/text
+        let destination = isLink ? link.href : (target.getAttribute('data-track-dest') || 'internal');
+
+        // If it's a tracked element, use its ID or data-track value as the "destination" or label
+        const trackLabel = target.getAttribute('data-track'); // e.g. "hero-cta"
+        const trackText = target.innerText || target.getAttribute('aria-label') || 'Unknown';
+
+        const isOutbound = isLink ? (link.hostname !== window.location.hostname) : false;
+
+        // Custom Payload
         const apiHost = new URL(currentScript.src).origin;
         const payload = {
             site_id: siteId,
@@ -71,9 +87,10 @@
             path: window.location.pathname,
             referrer: document.referrer || null,
             params: {
-                destination: link.href,
-                text: link.innerText,
-                is_outbound: isOutbound
+                destination: destination,
+                text: trackLabel ? `${trackLabel} (${trackText})` : trackText,
+                is_outbound: isOutbound,
+                is_tracked_element: !!trackedElement
             }
         };
 
@@ -82,7 +99,6 @@
             const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
             navigator.sendBeacon(`${apiHost}/api/track`, blob);
         } else {
-            // Fallback
             fetch(`${apiHost}/api/track`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

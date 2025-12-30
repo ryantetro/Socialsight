@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { MousePointer2, Eye, TrendingUp, ArrowUpRight, Activity, BarChart3, Zap, Copy, Check, X, MessageCircle, Smartphone, Mail, Globe, Share2, Plus, ArrowLeft, ExternalLink, Loader2, Shield, Laptop, Tablet } from 'lucide-react';
+import { MousePointer2, Eye, TrendingUp, ArrowUpRight, Activity, BarChart3, Zap, Copy, Check, X, MessageCircle, Smartphone, Mail, Globe, Share2, Plus, ArrowLeft, ExternalLink, Loader2, Shield, Laptop, Tablet, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@supabase/supabase-js';
 import MetaSnippet from './MetaSnippet';
@@ -902,19 +902,29 @@ export default function AnalyticsDashboard() {
                     </div>
                 </div>
 
-                <div className="w-full lg:w-auto flex bg-slate-50 p-1 rounded-2l border border-slate-100 relative z-10">
-                    {['24h', '7d', '30d'].map((range) => (
-                        <button
-                            key={range}
-                            onClick={() => setTimeRange(range)}
-                            className={cn(
-                                "flex-1 lg:flex-none px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-center",
-                                timeRange === range ? "bg-white text-blue-600 shadow-sm border border-slate-200/50" : "text-slate-400 hover:text-slate-600"
-                            )}
-                        >
-                            {range}
-                        </button>
-                    ))}
+                <div className="w-full lg:w-auto flex items-center gap-3 relative z-10">
+                    <button
+                        onClick={() => currentSite && loadDashboardData(currentSite.id)}
+                        className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 shadow-sm rounded-xl text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-all active:scale-95"
+                        title="Refresh Data"
+                    >
+                        <RefreshCw size={16} className={cn("transition-all", isRefreshing && "animate-spin text-blue-600")} />
+                    </button>
+
+                    <div className="flex bg-slate-50 p-1 rounded-2xl border border-slate-100">
+                        {['24h', '7d', '30d'].map((range) => (
+                            <button
+                                key={range}
+                                onClick={() => setTimeRange(range)}
+                                className={cn(
+                                    "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-center",
+                                    timeRange === range ? "bg-white text-blue-600 shadow-sm border border-slate-200/50" : "text-slate-400 hover:text-slate-600"
+                                )}
+                            >
+                                {range}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 

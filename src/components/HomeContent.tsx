@@ -491,6 +491,7 @@ export default function HomeContent() {
                   // Focus the input (with a slight delay to let scroll start)
                   setTimeout(() => document.getElementById('url-input')?.focus(), 100);
                 }}
+                data-track="nav-get-started-btn"
                 className="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-xs shadow-lg hover:shadow-black/10 hover:translate-y-[-1px] transition-all"
               >
                 Get Started
@@ -554,7 +555,8 @@ export default function HomeContent() {
                     <h3 className="text-2xl font-bold text-slate-900">No Scan Selected</h3>
                     <p className="text-slate-500 max-w-md mx-auto">Please run an audit first to use this tool, or select a previous scan from your history.</p>
                     <button
-                      onClick={() => setActiveTab('audit')}
+                      onClick={() => document.getElementById('hero')?.scrollIntoView({ behavior: 'smooth' })} // Maintain scroll behavior as it seems appropriate
+                      data-track="empty-state-start-audit-btn" // Distinct tracking name
                       className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20"
                     >
                       Start New Audit
