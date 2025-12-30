@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { MousePointer2, Eye, TrendingUp, ArrowUpRight, Activity, BarChart3, Zap, Copy, Check, X, MessageCircle, Smartphone, Mail, Globe, Share2, Plus, ArrowLeft, ExternalLink, Loader2, Shield } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { MousePointer2, Eye, TrendingUp, ArrowUpRight, Activity, BarChart3, Zap, Copy, Check, X, MessageCircle, Smartphone, Mail, Globe, Share2, Plus, ArrowLeft, ExternalLink, Loader2, Shield, Laptop, Tablet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@supabase/supabase-js';
 import MetaSnippet from './MetaSnippet';
@@ -41,6 +41,7 @@ export default function AnalyticsDashboard() {
     const [sites, setSites] = useState<Site[]>([]);
     const [currentSite, setCurrentSite] = useState<Site | null>(null);
     const [isLoadingSites, setIsLoadingSites] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false); // New state for background data fetching
 
     // Detail View State
     const [timeRange, setTimeRange] = useState('7d');
@@ -49,16 +50,24 @@ export default function AnalyticsDashboard() {
     const [totals, setTotals] = useState({ impressions: 0, clicks: 0, ctr: 0 });
     const [topSources, setTopSources] = useState<{ name: string, value: number, color: string }[]>([]);
 
+    // New Analytics Features State
+    const [topPages, setTopPages] = useState<{ path: string, count: number, percent: number }[]>([]);
+    const [deviceStats, setDeviceStats] = useState<{ name: string, value: number, color: string }[]>([]);
+    const [countryStats, setCountryStats] = useState<{ code: string, name: string, count: number, percent: number }[]>([]);
+
     // Colors for consistency: Twitter(black), LinkedIn(blue), FB(royal), Direct(slate), Google(red), etc.
     const SOURCE_COLORS: Record<string, string> = {
-        'twitter': '#000000',
+        'twitter': '#1DA1F2', // Twitter Blue (or X black, user preference? sticking to blue for recognition or black for brand?) User showed black in screenshot initially, but maybe prefers blue? actually X is black. Let's stick to user's 'Twitter' label. 
+        'x': '#000000',
         'linkedin': '#0077b5',
         'facebook': '#1877f2',
         'direct': '#64748b',
         'google': '#ea4335',
         'imessage': '#34c759',
         'whatsapp': '#25d366',
-        'search': '#fbbc05'
+        'search': '#fbbc05',
+        'referral': '#8b5cf6', // Violet for generic referral
+        'other': '#94a3b8'
     };
 
     // Setup State
@@ -90,6 +99,7 @@ export default function AnalyticsDashboard() {
             if (savedSites) {
                 try {
                     setSites(JSON.parse(savedSites));
+                    setIsLoadingSites(false); // Show cached content immediately
                 } catch (e) {
                     console.error('Failed to parse saved sites:', e);
                 }
@@ -104,11 +114,11 @@ export default function AnalyticsDashboard() {
 
             if (!error && data) {
                 // Check if data actually changed before updating state to avoid blink
-                const dataStr = JSON.stringify(data);
-                if (dataStr !== savedSites) {
-                    setSites(data);
-                    localStorage.setItem('analytics_sites_list', dataStr);
-                }
+                // const dataStr = JSON.stringify(data);
+                // if (dataStr !== savedSites) {
+                setSites(data);
+                localStorage.setItem('analytics_sites_list', JSON.stringify(data));
+                // }
             }
 
             setIsLoadingSites(false);
@@ -119,9 +129,20 @@ export default function AnalyticsDashboard() {
     // Sync currentSite with sites array (for background updates)
     useEffect(() => {
         if (currentSite && sites.length > 0) {
-            const updated = sites.find(s => s.id === currentSite.id);
+            // Priority 1: Match by ID (Normal case)
+            let updated = sites.find(s => s.id === currentSite.id);
+
+            // Priority 2: Match by Domain (Migration case: ID changed in DB but local cache has old ID)
+            if (!updated) {
+                updated = sites.find(s => s.domain === currentSite.domain);
+                if (updated) {
+                    console.log('🔄 Analytics: Detected ID change for site. Syncing...', { old: currentSite.id, new: updated.id });
+                }
+            }
+
             if (updated) {
-                const hasChanged = updated.site_title !== currentSite.site_title ||
+                const hasChanged = updated.id !== currentSite.id ||
+                    updated.site_title !== currentSite.site_title ||
                     updated.logo_url !== currentSite.logo_url ||
                     updated.favicon_url !== currentSite.favicon_url ||
                     updated.is_verified !== currentSite.is_verified;
@@ -140,7 +161,10 @@ export default function AnalyticsDashboard() {
             const sitesToRepair = sites.filter(s => s.is_verified && (!s.favicon_url || !s.site_title));
             if (sitesToRepair.length === 0) return;
 
-            for (const site of sitesToRepair) {
+            // Limit concurrency to prevent creating a massive request waterfall
+            const batch = sitesToRepair.slice(0, 3);
+
+            for (const site of batch) {
                 try {
                     let inspectUrl = site.domain;
                     if (!inspectUrl.startsWith('http')) inspectUrl = `https://${inspectUrl}`;
@@ -195,6 +219,8 @@ export default function AnalyticsDashboard() {
     }, [view, currentSite, timeRange]);
 
     const loadDashboardData = async (siteId: string) => {
+        setIsRefreshing(true);
+
         // Calculate Time Range
         const now = new Date();
         const cutoff = new Date();
@@ -212,6 +238,25 @@ export default function AnalyticsDashboard() {
             cutoff.setDate(cutoff.getDate() - 7);
         }
 
+        // 1. Try Cache First (SWR)
+        const cacheKey = `analytics_events_${siteId}_${timeRange}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+            try {
+                const { events, totals, stats, topSources, topPages, deviceStats, countryStats } = JSON.parse(cached);
+                setEvents(events);
+                setTotals(totals);
+                setStats(stats);
+                setTopSources(topSources || []);
+                setTopPages(topPages || []);
+                setDeviceStats(deviceStats || []);
+                setCountryStats(countryStats || []);
+                // Don't stop refreshing yet, we still want to fetch fresh data
+            } catch (e) {
+                console.error('Cache parse error', e);
+            }
+        }
+
         // Fetch Stats
         const { data: eventsData } = await supabase
             .from('analytics_events')
@@ -221,13 +266,32 @@ export default function AnalyticsDashboard() {
             .gte('created_at', cutoff.toISOString())
             .order('created_at', { ascending: false });
 
-        if (!eventsData) return;
+        if (!eventsData) {
+            console.log('📊 Dashboard: No Events Return from DB', { siteId });
+            setIsRefreshing(false);
+            return;
+        }
+
+        console.log('📊 Dashboard Data Loaded:', {
+            siteId,
+            eventsCount: eventsData.length,
+            sample: eventsData[0]
+        });
 
         // Process Totals
-        const impressions = eventsData.filter(e => e.event_type === 'impression').length;
-        const clicks = eventsData.filter(e => e.event_type === 'page_view' || e.event_type === 'click').length;
-        const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-        setTotals({ impressions, clicks, ctr });
+        // Process Totals
+        // For simple OpenGraph tracking, a 'page_view' IS an impression of the page.
+        // If we have separate 'impression' events later (e.g. from social cards), we can add them.
+        const impressions = eventsData.filter(e => e.event_type === 'impression' || e.event_type === 'page_view').length;
+        const clicks = eventsData.filter(e => e.event_type === 'click').length;
+        const ctr = impressions > 0 ? ((clicks / impressions) * 100) : 0;
+
+        const newTotals = {
+            impressions,
+            clicks,
+            ctr: parseFloat(ctr.toFixed(1))
+        };
+        setTotals(newTotals);
 
         // Process Recent Events Feed
         const recent = eventsData.slice(0, 10).map(e => ({
@@ -270,12 +334,13 @@ export default function AnalyticsDashboard() {
 
             if (chartMap.has(key)) {
                 const entry = chartMap.get(key);
-                if (e.event_type === 'impression') entry.impressions++;
+                if (e.event_type === 'impression' || e.event_type === 'page_view') entry.impressions++;
                 else entry.clicks++;
             }
         });
 
-        setStats(Array.from(chartMap.values()));
+        const newStats = Array.from(chartMap.values());
+        setStats(newStats);
 
         // Process Top Sources
         const sourceCounts: Record<string, number> = {};
@@ -296,6 +361,74 @@ export default function AnalyticsDashboard() {
             }));
 
         setTopSources(sortedSources);
+
+        // Process Top Pages
+        const pageCounts: Record<string, number> = {};
+        eventsData.forEach(e => {
+            if (e.event_type === 'page_view') {
+                const path = e.path || '/';
+                pageCounts[path] = (pageCounts[path] || 0) + 1;
+            }
+        });
+        const topPagesList = Object.entries(pageCounts)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 5)
+            .map(([path, count]) => ({
+                path,
+                count,
+                percent: impressions > 0 ? Math.round((count / impressions) * 100) : 0
+            }));
+        setTopPages(topPagesList);
+
+        // Process Devices
+        let mobile = 0;
+        let desktop = 0;
+        eventsData.forEach(e => {
+            if (e.event_type === 'page_view') {
+                const ua = (e.user_agent || '').toLowerCase();
+                const isMobile = /mobile|android|iphone|ipad|ipod/.test(ua);
+                if (isMobile) mobile++;
+                else desktop++;
+            }
+        });
+        const deviceData = [
+            { name: 'Desktop', value: desktop, color: '#3b82f6' }, // Blue
+            { name: 'Mobile', value: mobile, color: '#f59e0b' }   // Amber
+        ].filter(d => d.value > 0);
+        setDeviceStats(deviceData);
+
+        // Process Countries
+        const countryCounts: Record<string, number> = {};
+        eventsData.forEach(e => {
+            if (e.event_type === 'page_view') {
+                const c = e.country || 'Unknown';
+                countryCounts[c] = (countryCounts[c] || 0) + 1;
+            }
+        });
+        const countryList = Object.entries(countryCounts)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 5)
+            .map(([name, count]) => ({
+                code: 'US', // Simple placeholder, real flag logic requires a mapping lib
+                name,
+                count,
+                percent: impressions > 0 ? Math.round((count / impressions) * 100) : 0
+            }));
+        setCountryStats(countryList);
+
+        // Cache the result
+        localStorage.setItem(cacheKey, JSON.stringify({
+            events: recent,
+            totals: newTotals,
+            stats: newStats,
+            topSources: sortedSources,
+            topPages: topPagesList,
+            deviceStats: deviceData,
+            countryStats: countryList,
+            timestamp: Date.now()
+        }));
+
+        setIsRefreshing(false);
     };
 
     // --- Setup Logic ---
@@ -740,8 +873,10 @@ export default function AnalyticsDashboard() {
                     </button>
 
                     <div className="space-y-1.5 min-w-0 flex-1">
-                        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Scanning Website</span>
-                        <h2 className="text-4xl font-black text-slate-900 tracking-tight line-clamp-1">
+                        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                            Scanning Website {isRefreshing && <Loader2 size={12} className="animate-spin text-blue-600" />}
+                        </span>
+                        <h2 className={cn("text-4xl font-black text-slate-900 tracking-tight line-clamp-1 transition-opacity", isRefreshing && "opacity-50")}>
                             {currentSite?.site_title || currentSite?.domain}
                         </h2>
                         <div className="flex items-center text-slate-500 font-semibold italic">
@@ -814,38 +949,65 @@ export default function AnalyticsDashboard() {
                 <div className="bg-slate-900 text-white p-8 rounded-3xl relative overflow-hidden">
                     <div className="relative z-10">
                         <div className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-4">Total Impressions</div>
-                        <div className="text-5xl font-black">{(totals.impressions / 1000).toFixed(1)}k</div>
+                        {/* Fix: Don't show X.Xk decimal for small numbers below 1000. It looks like 0.0k. */}
+                        <div className="text-5xl font-black">
+                            {isRefreshing ? (
+                                <div className="h-12 w-32 bg-slate-800 rounded animate-pulse" />
+                            ) : (
+                                totals.impressions >= 1000
+                                    ? `${(totals.impressions / 1000).toFixed(1)}k`
+                                    : totals.impressions.toLocaleString()
+                            )}
+                        </div>
                     </div>
                 </div>
                 <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
                     <div className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-4">Unique Clicks</div>
-                    <div className="text-5xl font-black text-slate-900">{totals.clicks.toLocaleString()}</div>
+                    <div className="text-5xl font-black text-slate-900">
+                        {isRefreshing ? (
+                            <div className="h-12 w-24 bg-slate-100 rounded animate-pulse" />
+                        ) : (
+                            totals.clicks.toLocaleString()
+                        )}
+                    </div>
                 </div>
                 <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
                     <div className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-4">Avg. CTR</div>
-                    <div className="text-5xl font-black text-slate-900">{totals.ctr.toFixed(1)}%</div>
+                    <div className="text-5xl font-black text-slate-900">
+                        {isRefreshing ? (
+                            <div className="h-12 w-28 bg-slate-100 rounded animate-pulse" />
+                        ) : (
+                            `${totals.ctr.toFixed(1)}%`
+                        )}
+                    </div>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
                     <h3 className="text-xl font-bold text-slate-900 mb-8">Performance History</h3>
-                    <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={stats}>
-                                <defs>
-                                    <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
-                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} dy={10} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} width={30} />
-                                <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.1)' }} />
-                                <Area type="monotone" dataKey="impressions" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorImpressions)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                    <div className="h-64 w-full">
+                        {isRefreshing ? (
+                            <div className="w-full h-full bg-slate-50 rounded-2xl animate-pulse flex items-center justify-center">
+                                <Loader2 className="animate-spin text-slate-200" size={32} />
+                            </div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={stats} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
+                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} dy={10} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} width={30} />
+                                    <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.1)' }} />
+                                    <Area type="monotone" dataKey="impressions" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorImpressions)" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        )}
                     </div>
                 </div>
 
@@ -853,20 +1015,39 @@ export default function AnalyticsDashboard() {
                     <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
                         <h3 className="text-xl font-bold text-slate-900 mb-6">Traffic Sources</h3>
                         <div className="space-y-4">
-                            {topSources.map((p, i) => {
-                                const safePercent = totals.clicks > 0 ? Math.round((p.value / totals.clicks) * 100) : 0;
-                                return (
-                                    <div key={i} className="space-y-2">
-                                        <div className="flex justify-between text-sm font-bold">
-                                            <span className="text-slate-600">{p.name}</span>
-                                            <span className="text-slate-900">{safePercent}%</span>
-                                        </div>
-                                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                                            <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${safePercent}%`, backgroundColor: p.color }} />
-                                        </div>
+                            {isRefreshing ? (
+                                <>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between"><div className="h-4 w-20 bg-slate-100 rounded animate-pulse" /><div className="h-4 w-8 bg-slate-100 rounded animate-pulse" /></div>
+                                        <div className="h-2 w-full bg-slate-100 rounded-full animate-pulse" />
                                     </div>
-                                )
-                            })}
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between"><div className="h-4 w-16 bg-slate-100 rounded animate-pulse" /><div className="h-4 w-8 bg-slate-100 rounded animate-pulse" /></div>
+                                        <div className="h-2 w-full bg-slate-100 rounded-full animate-pulse" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between"><div className="h-4 w-24 bg-slate-100 rounded animate-pulse" /><div className="h-4 w-8 bg-slate-100 rounded animate-pulse" /></div>
+                                        <div className="h-2 w-full bg-slate-100 rounded-full animate-pulse" />
+                                    </div>
+                                </>
+                            ) : (
+                                topSources.map((p, i) => {
+                                    // Fix: Sources % should be based on TOTAL Impressions (or page views), not "Unique Clicks" (which are 0)
+                                    // If click tracking is sparse, source ratio is better calculated vs total traffic.
+                                    const safePercent = totals.impressions > 0 ? Math.round((p.value / totals.impressions) * 100) : 0;
+                                    return (
+                                        <div key={i} className="space-y-2">
+                                            <div className="flex justify-between text-sm font-bold">
+                                                <span className="text-slate-600">{p.name}</span>
+                                                <span className="text-slate-900">{safePercent}%</span>
+                                            </div>
+                                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${safePercent}%`, backgroundColor: p.color }} />
+                                            </div>
+                                        </div>
+                                    )
+                                })
+                            )}
                         </div>
                     </div>
 
@@ -888,6 +1069,171 @@ export default function AnalyticsDashboard() {
                                 </div>
                             ))}
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* New Professional Analytics Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Top Pages Card */}
+                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-500">
+                    <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2 relative z-10">
+                        <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                            <ArrowUpRight size={18} />
+                        </div>
+                        Top Pages
+                    </h3>
+                    <div className="space-y-5 relative z-10">
+                        {isRefreshing ? (
+                            <>
+                                {[1, 2, 3].map(i => (
+                                    <div key={i} className="space-y-2">
+                                        <div className="flex justify-between"><div className="h-4 w-32 bg-slate-100 rounded animate-pulse" /><div className="h-4 w-12 bg-slate-100 rounded animate-pulse" /></div>
+                                        <div className="h-2 w-full bg-slate-100 rounded-full animate-pulse" />
+                                    </div>
+                                ))}
+                            </>
+                        ) : (
+                            topPages.length > 0 ? topPages.map((page, i) => (
+                                <div key={i} className="group/item">
+                                    <div className="flex justify-between text-sm font-medium mb-2 items-center">
+                                        <span className="font-mono text-[10px] text-slate-600 bg-slate-100 px-2 py-1 rounded border border-slate-200 truncate max-w-[180px] group-hover/item:border-blue-200 group-hover/item:text-blue-700 transition-colors">
+                                            {page.path}
+                                        </span>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-slate-900 font-bold">{page.count}</span>
+                                            <span className="text-slate-400 text-xs">({page.percent}%)</span>
+                                        </div>
+                                    </div>
+                                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                        <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-1000 ease-out" style={{ width: `${page.percent}%` }} />
+                                    </div>
+                                </div>
+                            )) : (
+                                <div className="text-slate-400 text-sm font-medium italic py-4 flex flex-col items-center justify-center gap-2">
+                                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-2">
+                                        <ArrowUpRight size={24} />
+                                    </div>
+                                    No page views yet
+                                </div>
+                            )
+                        )}
+                    </div>
+                </div>
+
+                {/* Device Breakdown Card */}
+                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-500">
+                    <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2 relative z-10">
+                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                            <Smartphone size={18} />
+                        </div>
+                        Devices
+                    </h3>
+                    <div className="h-56 relative z-10 flex flex-col items-center justify-center">
+                        {isRefreshing ? (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-32 h-32 rounded-full border-8 border-slate-100 animate-pulse border-t-indigo-100" />
+                            </div>
+                        ) : (
+                            deviceStats.length > 0 ? (
+                                <div className="w-full h-full flex flex-col items-center">
+                                    <ResponsiveContainer width="100%" height={160}>
+                                        <PieChart>
+                                            <Pie
+                                                data={deviceStats}
+                                                innerRadius={55}
+                                                outerRadius={75}
+                                                paddingAngle={4}
+                                                dataKey="value"
+                                                cornerRadius={4}
+                                                startAngle={90}
+                                                endAngle={-270}
+                                            >
+                                                {deviceStats.map((entry, index) => (
+                                                    <Cell
+                                                        key={`cell-${index}`}
+                                                        fill={entry.name === 'Mobile' ? '#f59e0b' : '#6366f1'}
+                                                        stroke="none"
+                                                    />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip
+                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: '12px' }}
+                                                formatter={(value: any) => [`${value} Users`, '']}
+                                            />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                    <div className="flex justify-center gap-6 mt-2">
+                                        {deviceStats.map((d, i) => (
+                                            <div key={i} className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                                                <span className="w-2.5 h-2.5 rounded-full ring-2 ring-white shadow-sm" style={{ backgroundColor: d.name === 'Mobile' ? '#f59e0b' : '#6366f1' }} />
+                                                {d.name} <span className="opacity-50 ml-0.5">({Math.round((d.value / (deviceStats.reduce((a, b) => a + b.value, 0))) * 100)}%)</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-400 text-sm font-medium italic">
+                                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-2">
+                                        <Laptop size={24} />
+                                    </div>
+                                    No device data
+                                </div>
+                            )
+                        )}
+                        {/* Center Legend */}
+                        {!isRefreshing && deviceStats.length > 0 && (
+                            <div className="absolute top-[35%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                                <span className="font-black text-3xl text-slate-900 block">{deviceStats.reduce((a, b) => a + b.value, 0)}</span>
+                                <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Total</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Geographic Locations Card */}
+                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-500">
+                    <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2 relative z-10">
+                        <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                            <Globe size={18} />
+                        </div>
+                        Locations
+                    </h3>
+                    <div className="space-y-5 relative z-10">
+                        {isRefreshing ? (
+                            <>
+                                {[1, 2, 3].map(i => (
+                                    <div key={i} className="space-y-2">
+                                        <div className="flex justify-between"><div className="h-4 w-24 bg-slate-100 rounded animate-pulse" /><div className="h-4 w-8 bg-slate-100 rounded animate-pulse" /></div>
+                                        <div className="h-2 w-full bg-slate-100 rounded-full animate-pulse" />
+                                    </div>
+                                ))}
+                            </>
+                        ) : (
+                            countryStats.length > 0 ? countryStats.map((c, i) => (
+                                <div key={i} className="group/item">
+                                    <div className="flex justify-between text-sm font-medium mb-2">
+                                        <span className="text-slate-700 flex items-center gap-2 font-bold">
+                                            {c.name}
+                                        </span>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-slate-900 font-bold">{c.count}</span>
+                                            <span className="text-slate-400 text-xs">({c.percent}%)</span>
+                                        </div>
+                                    </div>
+                                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                        <div className="h-full bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full transition-all duration-1000 ease-out" style={{ width: `${c.percent}%` }} />
+                                    </div>
+                                </div>
+                            )) : (
+                                <div className="text-slate-400 text-sm font-medium italic py-4 flex flex-col items-center justify-center gap-2">
+                                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-2">
+                                        <Globe size={24} />
+                                    </div>
+                                    No location data
+                                </div>
+                            )
+                        )}
                     </div>
                 </div>
             </div>

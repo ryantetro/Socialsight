@@ -52,6 +52,46 @@
         window.addEventListener('load', trackPageView);
     }
 
+    // Capture Clicks
+    document.addEventListener('click', (e) => {
+        const link = e.target.closest('a');
+        if (!link) return;
+
+        // Ignore internal hash links
+        if (link.hash && link.pathname === window.location.pathname) return;
+
+        // Determine if outbound or important
+        const isOutbound = link.hostname !== window.location.hostname;
+
+        // Track unique click
+        const apiHost = new URL(currentScript.src).origin;
+        const payload = {
+            site_id: siteId,
+            event_type: 'click',
+            path: window.location.pathname,
+            referrer: document.referrer || null,
+            params: {
+                destination: link.href,
+                text: link.innerText,
+                is_outbound: isOutbound
+            }
+        };
+
+        // Use sendBeacon for reliability on navigation
+        if (navigator.sendBeacon) {
+            const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+            navigator.sendBeacon(`${apiHost}/api/track`, blob);
+        } else {
+            // Fallback
+            fetch(`${apiHost}/api/track`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                keepalive: true
+            }).catch(console.error);
+        }
+    });
+
     // Optional: Handle History Changes for SPAs (Generic simple version)
     // ...
 })();
