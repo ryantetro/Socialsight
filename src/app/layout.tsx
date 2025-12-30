@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Social Sight | The best way to track OG tags',
     description: 'Boost your social CTR with real-time analytics and high-fidelity social previews.',
-    url: 'https://socialsight.dev?utm_source=previewperfect&utm_medium=social&utm_campaign=og_share',
+    url: 'socialsight.dev?utm_source=previewperfect&utm_medium=social&utm_campaign=og_share',
     siteName: 'Social Sight',
     images: [
       {
@@ -44,7 +44,7 @@ export default function RootLayout({
       <body>
         {children}
         {/* SocialSight Tracking Pixel */}
-        <script async src="https://cdn.previewperfect.ai/pixel.js" data-id="pp_7b769333"></script>
+        <script async src="https://cdn.previewperfect.ai/pixel.js" data-id="pp_40d4e776"></script>
         <Analytics />
       </body>
     </html>

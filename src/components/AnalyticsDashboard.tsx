@@ -30,6 +30,7 @@ interface Site {
     domain: string;
     created_at: string;
     is_verified?: boolean;
+    logo_url?: string;
 }
 
 export default function AnalyticsDashboard() {
@@ -254,7 +255,11 @@ export default function AnalyticsDashboard() {
             const res = await fetch('/api/sites/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ domain: trackingUrl, site_id: siteId })
+                body: JSON.stringify({
+                    domain: trackingUrl,
+                    site_id: siteId,
+                    logo_url: metaImage || null
+                })
             });
             const json = await res.json();
 
@@ -667,16 +672,15 @@ export default function AnalyticsDashboard() {
                                         <div className="p-6 md:p-8 relative z-10">
                                             <div className="flex items-start justify-between mb-6">
                                                 <div className="w-12 h-12 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
+                                                    {/* Prioritize site logo, fallback to Google favicon */}
                                                     <img
-                                                        src={`https://www.google.com/s2/favicons?domain=${site.domain}&sz=128`}
+                                                        src={site.logo_url || `https://www.google.com/s2/favicons?domain=${site.domain}&sz=128`}
                                                         alt={`${site.domain} logo`}
-                                                        className="w-8 h-8 object-contain"
+                                                        className="w-full h-full object-cover"
                                                         onError={(e) => {
-                                                            (e.target as HTMLImageElement).style.display = 'none';
-                                                            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                                                            (e.target as HTMLImageElement).src = `https://www.google.com/s2/favicons?domain=${site.domain}&sz=128`;
                                                         }}
                                                     />
-                                                    <Globe className="text-slate-400 hidden" size={20} />
                                                 </div>
                                                 <div className="p-2 rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
                                                     <ArrowUpRight size={20} />
@@ -770,14 +774,17 @@ export default function AnalyticsDashboard() {
                     </button>
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 md:gap-3 mb-1">
-                            <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-100 p-1 shrink-0">
+                            <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-white border border-slate-100 shadow-sm p-1 shrink-0 overflow-hidden flex items-center justify-center">
                                 <img
-                                    src={`https://www.google.com/s2/favicons?domain=${currentSite?.domain}&sz=64`}
-                                    alt="favicon"
-                                    className="w-full h-full object-contain"
+                                    src={currentSite?.logo_url || `https://www.google.com/s2/favicons?domain=${currentSite?.domain}&sz=128`}
+                                    alt="site logo"
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).src = `https://www.google.com/s2/favicons?domain=${currentSite?.domain}&sz=128`;
+                                    }}
                                 />
                             </div>
-                            <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight truncate">
+                            <h2 className="text-xl md:text-3xl font-black text-slate-900 tracking-tight truncate">
                                 {currentSite?.domain}
                             </h2>
                         </div>
