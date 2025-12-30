@@ -27,28 +27,6 @@ export default function ScoreAudit({ score, issues, stats, onCheckout }: ScoreAu
         return 'Needs Attention';
     };
 
-    const handleCheckout = async () => {
-        const priceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD;
-        if (!priceId) return;
-        try {
-            const res = await fetch('/api/checkout', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ priceId, view: 'fix' })
-            });
-
-            if (res.status === 401) {
-                window.location.href = '/login';
-                return;
-            }
-
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            if (data.url) window.location.href = data.url;
-        } catch (e) {
-            console.error("Checkout Failed", e);
-        }
-    };
 
     const strokeDasharray = 2 * Math.PI * 45;
     const strokeDashoffset = strokeDasharray - (strokeDasharray * score) / 100;
@@ -164,7 +142,7 @@ export default function ScoreAudit({ score, issues, stats, onCheckout }: ScoreAu
             {/* High-Value CTA */}
             <div className="mt-8 pt-8 border-t border-slate-100">
                 <button
-                    onClick={onCheckout || handleCheckout}
+                    onClick={onCheckout}
                     className="w-full bg-slate-900 hover:bg-black text-white p-5 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-slate-200 group/btn overflow-hidden relative">
                     <div className="absolute inset-0 bg-blue-600 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300" />
                     <Zap className="w-4 h-4 relative z-10 fill-amber-400 text-amber-400 group-hover/btn:scale-110 transition-transform" />

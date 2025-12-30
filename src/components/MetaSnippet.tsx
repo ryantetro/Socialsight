@@ -11,7 +11,7 @@ interface MetaSnippetProps {
 
 export default function MetaSnippet({ title, description, image, url, siteId = 'pp_demo' }: MetaSnippetProps) {
     const [copied, setCopied] = useState(false);
-    const [smartTracking, setSmartTracking] = useState(false);
+    const [smartTracking, setSmartTracking] = useState(true);
 
     const trackingParams = smartTracking
         ? '?utm_source=previewperfect&utm_medium=social&utm_campaign=og_share'
@@ -20,8 +20,8 @@ export default function MetaSnippet({ title, description, image, url, siteId = '
     const finalUrl = `${url}${trackingParams}`;
 
     // Generate Script Snippet
-    const scriptCode = `<!-- SocialSight Pixel -->
-<script src="${typeof window !== 'undefined' ? window.location.origin : ''}/pixel.js" data-id="${siteId}" async defer></script>`;
+    const scriptCode = `<!-- SocialSight Tracking Pixel -->
+<script async src="https://cdn.previewperfect.ai/pixel.js" data-id="${siteId}"></script>`;
 
     const code = `<!-- Primary Meta Tags -->
 <title>${title}</title>
@@ -65,12 +65,12 @@ ${scriptCode}`;
                 </div>
 
                 <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 w-full sm:w-auto">
-                    <label className="flex items-center gap-2 cursor-pointer group select-none">
-                        <div className={`w-8 h-4 rounded-full transition-colors relative ${smartTracking ? 'bg-blue-600' : 'bg-slate-700'}`}>
-                            <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${smartTracking ? 'translate-x-4' : 'translate-x-0'}`} />
+                    <label className="flex items-center gap-3 cursor-pointer group select-none shrink-0">
+                        <div className={`w-9 h-5 rounded-full transition-all duration-300 relative ${smartTracking ? 'bg-blue-600 shadow-lg shadow-blue-500/20' : 'bg-slate-700'}`}>
+                            <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform duration-300 ${smartTracking ? 'translate-x-4' : 'translate-x-0'}`} />
                         </div>
                         <input type="checkbox" className="hidden" checked={smartTracking} onChange={() => setSmartTracking(!smartTracking)} />
-                        <span className={`text-[10px] font-bold uppercase tracking-wider transition-colors ${smartTracking ? 'text-blue-400' : 'text-slate-500 group-hover:text-slate-400'}`}>
+                        <span className={`text-[10px] font-black uppercase tracking-[0.15em] whitespace-nowrap transition-colors ${smartTracking ? 'text-blue-400' : 'text-slate-500 group-hover:text-slate-400'}`}>
                             Smart Tracking
                         </span>
                     </label>

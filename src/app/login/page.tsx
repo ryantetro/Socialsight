@@ -50,7 +50,11 @@ function LoginContent() {
                         "Stop guessing locally. Start optimizing specifically. The only tool that guarantees your links convert."
                     </blockquote>
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-slate-200 rounded-full" />
+                        <img
+                            src="/profilepic.jpeg"
+                            alt="Ryan Tetro"
+                            className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm ring-4 ring-blue-500/5 transition-transform hover:scale-110"
+                        />
                         <div>
                             <div className="font-bold text-slate-900">Ryan Tetro</div>
                             <div className="text-slate-500 text-sm font-medium">Founder, Social Sight</div>
@@ -59,7 +63,7 @@ function LoginContent() {
                 </div>
 
                 <div className="relative z-10 text-xs font-bold text-slate-400 uppercase tracking-widest">
-                    © 2024 Social Sight Inc.
+                    © 2025 Social Sight Inc.
                 </div>
             </div>
 

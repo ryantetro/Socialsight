@@ -266,7 +266,13 @@ export default function HomeContent() {
     }
 
     if (!priceId) {
-      alert("Configuration Error: Price ID missing");
+      if (user) {
+        // If logged in and clicking Free, just redirect to dashboard or show info
+        window.location.href = '/dashboard';
+      } else {
+        // If not logged in and clicking Free, redirect to login
+        window.location.href = '/login';
+      }
       return;
     }
 
@@ -552,6 +558,7 @@ export default function HomeContent() {
                         score={result.score || 0}
                         issues={result.issues || []}
                         stats={result.stats}
+                        onCheckout={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'fix')}
                       />
                     </div>
 
@@ -911,20 +918,7 @@ export default function HomeContent() {
                       </ul>
 
                       <button
-                        onClick={async () => {
-                          if (!tier.priceId) return;
-                          try {
-                            const res = await fetch('/api/checkout', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ priceId: tier.priceId })
-                            });
-                            const { url } = await res.json();
-                            if (url) window.location.href = url;
-                          } catch (e) {
-                            console.error("Checkout Failed", e);
-                          }
-                        }}
+                        onClick={() => handleCheckout(tier.priceId || undefined)}
                         className={cn(
                           "w-full py-4 rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer",
                           tier.variant === 'blue'
@@ -961,35 +955,7 @@ export default function HomeContent() {
                       </div>
                     </div>
                     <button
-                      onClick={async () => {
-                        const priceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD;
-                        console.log("Banner Button Clicked. PriceID:", priceId);
-
-                        if (!priceId) {
-                          alert("Configuration Error: NEXT_PUBLIC_STRIPE_PRICE_LTD is missing in .env.local");
-                          return;
-                        }
-
-                        try {
-                          const res = await fetch('/api/checkout', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ priceId })
-                          });
-
-                          if (res.status === 401) {
-                            window.location.href = '/login';
-                            return;
-                          }
-
-                          const data = await res.json();
-                          if (data.error) throw new Error(data.error);
-                          if (data.url) window.location.href = data.url;
-                        } catch (e) {
-                          console.error("LTD Checkout Failed", e);
-                          alert("Checkout Failed: " + (e instanceof Error ? e.message : "Unknown Error"));
-                        }
-                      }}
+                      onClick={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
                       className="px-10 py-5 bg-white text-blue-700 rounded-2xl font-black text-lg shadow-xl hover:bg-blue-50 transition-colors shrink-0 active:scale-95 cursor-pointer">
                       Grab Lifetime Deal
                     </button>
