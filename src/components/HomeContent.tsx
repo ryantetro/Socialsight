@@ -33,8 +33,24 @@ export default function HomeContent() {
   const [result, setResult] = useState<InspectionResult | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
-  const [activeTab, setActiveTab] = useState<'audit' | 'fix' | 'compare' | 'monitor' | 'analytics' | 'history'>('audit');
   const [showVictoryModal, setShowVictoryModal] = useState(false);
+
+  // Initialize from localStorage immediately if possible, but safely for SSR.
+  const [activeTab, setActiveTabState] = useState<'audit' | 'fix' | 'compare' | 'monitor' | 'analytics' | 'history'>('audit');
+
+  // Persistence: Read on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('socialsight_active_tab');
+    if (saved && ['audit', 'fix', 'compare', 'monitor', 'analytics', 'history'].includes(saved)) {
+      setActiveTabState(saved as any);
+    }
+  }, []);
+
+  // Persistence: Write on change
+  const setActiveTab = (tab: 'audit' | 'fix' | 'compare' | 'monitor' | 'analytics' | 'history') => {
+    setActiveTabState(tab);
+    localStorage.setItem('socialsight_active_tab', tab);
+  };
 
 
   const [debugTier, setDebugTier] = useState<{ active: boolean, tier: any }>({ active: false, tier: 'free' });

@@ -37,9 +37,8 @@ export function useProfile() {
 
                 if (mounted) {
                     setUser(user);
-                    // OPTIMISTIC LOAD: Stop loading immediately once we know the user.
-                    // Profile data will likely arrive a split second later, defaulting to 'free' in the meantime.
-                    setLoading(false);
+                    // Do NOT set loading to false here. Wait for profile.
+                    // setLoading(false); 
                 }
 
                 if (user) {

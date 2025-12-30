@@ -34,17 +34,38 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Dynamic Dogfooding: Fetch the actual ID for socialsight.dev from the DB
+  // This ensures that if we reset the DB/dashboard, the pixel stays in sync.
+  let trackingId = 'pp_d31c3026'; // Fallback
+  try {
+    // We import dynamically to avoid build-time static issues if env vars aren't ready
+    const { createClient } = await import('@/lib/supabase/server');
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from('analytics_sites')
+      .select('id')
+      .ilike('domain', '%socialsight.dev%')
+      .limit(1)
+      .single();
+
+    if (data?.id) {
+      trackingId = data.id;
+    }
+  } catch (e) {
+    // console.warn('Could not fetch dynamic tracking ID, using fallback');
+  }
+
   return (
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <body>
         {children}
-        {/* SocialSight Tracking Pixel */}
-        <script async src="https://cdn.previewperfect.ai/pixel.js" data-id="pp_d31c3026"></script>
+        {/* SocialSight Tracking Pixel (Dynamic Dogfooding) */}
+        <script async src="https://cdn.previewperfect.ai/pixel.js" data-id={trackingId}></script>
         <Analytics />
       </body>
     </html>
