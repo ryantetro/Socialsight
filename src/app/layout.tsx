@@ -44,7 +44,7 @@ export default function RootLayout({
       <body>
         {children}
         {/* SocialSight Tracking Pixel */}
-        <script async src="https://cdn.previewperfect.ai/pixel.js" data-id="pp_c402949b"></script>
+        <script async src="https://cdn.previewperfect.ai/pixel.js" data-id="pp_7b769333"></script>
         <Analytics />
       </body>
     </html>

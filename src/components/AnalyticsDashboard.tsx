@@ -92,12 +92,18 @@ export default function AnalyticsDashboard() {
             const { data, error } = await supabase
                 .from('analytics_sites')
                 .select('*')
-                .eq('is_verified', true) // --- Only show verified sites ---
+                .eq('is_verified', true)
                 .order('created_at', { ascending: false });
 
-            if (!error && data) {
-                setSites(data);
-                localStorage.setItem('analytics_sites_list', JSON.stringify(data));
+            if (!error) {
+                if (data && data.length > 0) {
+                    setSites(data);
+                    localStorage.setItem('analytics_sites_list', JSON.stringify(data));
+                } else {
+                    // DB is empty, clear everything
+                    setSites([]);
+                    localStorage.removeItem('analytics_sites_list');
+                }
             }
             setIsLoadingSites(false);
         };
@@ -629,74 +635,73 @@ export default function AnalyticsDashboard() {
 
                 {isLoadingSites ? (
                     <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={32} /></div>
-                ) : sites.length === 0 ? (
-                    // Empty State
-                    <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[3rem] p-8 md:p-20 text-center flex flex-col items-center justify-center min-h-[400px]">
-                        <div className="w-20 h-20 md:w-24 md:h-24 bg-white rounded-3xl shadow-xl shadow-blue-900/5 flex items-center justify-center mx-auto rotate-3 mb-6 md:mb-8">
-                            <BarChart3 className="w-8 h-8 md:w-10 md:h-10 text-blue-600" />
-                        </div>
-                        <h3 className="text-xl md:text-2xl font-black text-slate-900 mb-2">Unlock Your Data</h3>
-                        <p className="text-slate-500 font-medium text-base md:text-lg leading-relaxed max-w-md mx-auto mb-8">
-                            Install our smart tracking pixel to see real-time social traffic, click-through rates, and conversion metrics.
-                        </p>
-                        <button
-                            onClick={handleStartSetup}
-                            className="w-full md:w-auto px-10 py-5 bg-blue-600 text-white rounded-2xl font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-3"
-                        >
-                            <Zap className="fill-white" /> Connect Your Site
-                        </button>
-                    </div>
                 ) : (
-                    // Grid of Sites
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                        {sites.map((site, i) => (
-                            <div
-                                key={site.id}
-                                onClick={() => { setCurrentSite(site); setView('detail'); }}
-                                className="group bg-white rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-blue-900/5 transition-all cursor-pointer relative overflow-hidden animate-fade-in-up"
-                                style={{ animationDelay: `${i * 50}ms` }}
-                            >
-                                <div className="absolute top-0 right-0 p-32 bg-slate-50 rounded-full blur-2xl -mr-16 -mt-16 transition-all group-hover:bg-blue-50/50 pointer-events-none" />
-
-                                <div className="p-6 md:p-8 relative z-10">
-                                    <div className="flex items-start justify-between mb-6">
-                                        <div className="w-12 h-12 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
-                                            {/* Using Google's favicon service for a quick "Opengraph-like" logo */}
-                                            <img
-                                                src={`https://www.google.com/s2/favicons?domain=${site.domain}&sz=128`}
-                                                alt={`${site.domain} logo`}
-                                                className="w-8 h-8 object-contain"
-                                                onError={(e) => {
-                                                    // Fallback if image fails
-                                                    (e.target as HTMLImageElement).style.display = 'none';
-                                                    (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                                                }}
-                                            />
-                                            <Globe className="text-slate-400 hidden" size={20} />
-                                        </div>
-                                        <div className="p-2 rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
-                                            <ArrowUpRight size={20} />
-                                        </div>
-                                    </div>
-
-                                    <h3 className="text-lg md:text-xl font-bold text-slate-900 mb-1 truncate">{site.domain}</h3>
-                                    <div className="flex items-center gap-2 mb-6">
-                                        <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
-                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-green-600 transition-colors">
-                                            Live Tracking
-                                        </span>
-                                    </div>
-
-                                    {/* Mini Sparkline Visualization (Static for now, adds "pro" feel) */}
-                                    <div className="flex items-end gap-1 h-8 opacity-20 grayscale group-hover:grayscale-0 group-hover:opacity-40 transition-all">
-                                        {[40, 65, 50, 80, 55, 90, 70].map((h, i) => (
-                                            <div key={i} className="flex-1 bg-blue-600 rounded-t-sm" style={{ height: `${h}%` }} />
-                                        ))}
-                                    </div>
+                    <>
+                        {sites.length === 0 ? (
+                            <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[3rem] p-8 md:p-20 text-center flex flex-col items-center justify-center min-h-[400px]">
+                                <div className="w-20 h-20 md:w-24 md:h-24 bg-white rounded-3xl shadow-xl shadow-blue-900/5 flex items-center justify-center mx-auto rotate-3 mb-6 md:mb-8">
+                                    <BarChart3 className="w-8 h-8 md:w-10 md:h-10 text-blue-600" />
                                 </div>
+                                <h3 className="text-xl md:text-2xl font-black text-slate-900 mb-2">Unlock Your Data</h3>
+                                <p className="text-slate-500 font-medium text-base md:text-lg leading-relaxed max-w-md mx-auto mb-8">
+                                    Install our smart tracking pixel to see real-time social traffic, click-through rates, and conversion metrics.
+                                </p>
+                                <button
+                                    onClick={handleStartSetup}
+                                    className="w-full md:w-auto px-10 py-5 bg-blue-600 text-white rounded-2xl font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-3"
+                                >
+                                    <Zap className="fill-white" /> Connect Your Site
+                                </button>
                             </div>
-                        ))}
-                    </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                                {sites.map((site, i) => (
+                                    <div
+                                        key={site.id}
+                                        onClick={() => { setCurrentSite(site); setView('detail'); }}
+                                        className="group bg-white rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-blue-900/5 transition-all cursor-pointer relative overflow-hidden animate-fade-in-up"
+                                        style={{ animationDelay: `${i * 50}ms` }}
+                                    >
+                                        <div className="absolute top-0 right-0 p-32 bg-slate-50 rounded-full blur-2xl -mr-16 -mt-16 transition-all group-hover:bg-blue-50/50 pointer-events-none" />
+
+                                        <div className="p-6 md:p-8 relative z-10">
+                                            <div className="flex items-start justify-between mb-6">
+                                                <div className="w-12 h-12 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
+                                                    <img
+                                                        src={`https://www.google.com/s2/favicons?domain=${site.domain}&sz=128`}
+                                                        alt={`${site.domain} logo`}
+                                                        className="w-8 h-8 object-contain"
+                                                        onError={(e) => {
+                                                            (e.target as HTMLImageElement).style.display = 'none';
+                                                            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                                                        }}
+                                                    />
+                                                    <Globe className="text-slate-400 hidden" size={20} />
+                                                </div>
+                                                <div className="p-2 rounded-full bg-slate-50 text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+                                                    <ArrowUpRight size={20} />
+                                                </div>
+                                            </div>
+
+                                            <h3 className="text-lg md:text-xl font-bold text-slate-900 mb-1 truncate">{site.domain}</h3>
+                                            <div className="flex items-center gap-2 mb-6">
+                                                <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+                                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-green-600 transition-colors">
+                                                    Live Tracking
+                                                </span>
+                                            </div>
+
+                                            <div className="flex items-end gap-1 h-8 opacity-20 grayscale group-hover:grayscale-0 group-hover:opacity-40 transition-all">
+                                                {[40, 65, 50, 80, 55, 90, 70].map((h, i) => (
+                                                    <div key={i} className="flex-1 bg-blue-600 rounded-t-sm" style={{ height: `${h}%` }} />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         );
