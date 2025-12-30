@@ -328,7 +328,25 @@ export default function HomeContent() {
 
       <DebugPlanSwitcher
         currentTier={effectiveTier}
-        onTierChange={(tier) => setDebugTier({ active: true, tier })}
+        onTierChange={async (tier) => {
+          // 1. Optimistic Update
+          setDebugTier({ active: true, tier });
+
+          // 2. Persist to Database if user is logged in
+          if (user && tier !== 'signed-out') {
+            try {
+              await fetch('/api/debug/set-tier', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tier })
+              });
+              // Refresh profile to confirm
+              if (refresh) refresh();
+            } catch (e) {
+              console.error('Failed to persist tier', e);
+            }
+          }
+        }}
       />
 
       <VictoryModal
