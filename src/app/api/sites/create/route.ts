@@ -8,7 +8,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { domain, site_id, user_id, logo_url } = body;
+        const { domain, site_id, user_id, logo_url, site_title } = body;
 
         if (!domain || !site_id) {
             return NextResponse.json({ error: 'Missing domain or site_id' }, { status: 400 });
@@ -20,7 +20,8 @@ export async function POST(request: Request) {
                 id: site_id,
                 domain,
                 user_id: user_id || null,
-                logo_url: logo_url || null
+                logo_url: logo_url || null,
+                site_title: site_title || null
             })
             .select()
             .single();

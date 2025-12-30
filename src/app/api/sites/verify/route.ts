@@ -48,14 +48,30 @@ export async function POST(request: Request) {
             if (hasPixel && hasSiteId) {
                 // Update database to mark as verified
                 try {
-                    const { createClient } = await import('@/lib/supabase/server');
-                    const supabase = await createClient();
-                    await supabase
+                    const { createClient } = await import('@supabase/supabase-js');
+                    const supabaseAdmin = createClient(
+                        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                        process.env.SUPABASE_SERVICE_ROLE_KEY!
+                    );
+
+                    const { error: updateError } = await supabaseAdmin
                         .from('analytics_sites')
                         .update({ is_verified: true, last_verified_at: new Date().toISOString() })
                         .eq('id', site_id);
+
+                    if (updateError) {
+                        console.error('[Verify DB Update Error]:', updateError);
+                        return NextResponse.json({
+                            success: false,
+                            error: 'Pixel found, but failed to update database status. Please try again.'
+                        });
+                    }
                 } catch (dbErr) {
                     console.error('[Verify DB Error]:', dbErr);
+                    return NextResponse.json({
+                        success: false,
+                        error: 'An internal error occurred while saving verification status.'
+                    });
                 }
 
                 return NextResponse.json({

@@ -31,6 +31,7 @@ interface Site {
     created_at: string;
     is_verified?: boolean;
     logo_url?: string;
+    site_title?: string;
 }
 
 export default function AnalyticsDashboard() {
@@ -81,31 +82,33 @@ export default function AnalyticsDashboard() {
     useEffect(() => {
         const fetchSites = async () => {
             setIsLoadingSites(true);
-            const savedSites = localStorage.getItem('analytics_sites_list');
 
-            // 1. Try Local Storage first (fastest)
+            // 1. Try Local Storage first (for instant feedback)
+            const savedSites = localStorage.getItem('analytics_sites_list');
             if (savedSites) {
-                setSites(JSON.parse(savedSites));
-                setIsLoadingSites(false);
+                try {
+                    setSites(JSON.parse(savedSites));
+                } catch (e) {
+                    console.error('Failed to parse saved sites:', e);
+                }
             }
 
-            // 2. Fetch from DB (source of truth)
+            // 2. Fetch from DB (Source of Truth)
             const { data, error } = await supabase
                 .from('analytics_sites')
                 .select('*')
                 .eq('is_verified', true)
                 .order('created_at', { ascending: false });
 
-            if (!error) {
-                if (data && data.length > 0) {
-                    setSites(data);
+            if (!error && data) {
+                setSites(data);
+                if (data.length > 0) {
                     localStorage.setItem('analytics_sites_list', JSON.stringify(data));
                 } else {
-                    // DB is empty, clear everything
-                    setSites([]);
                     localStorage.removeItem('analytics_sites_list');
                 }
             }
+
             setIsLoadingSites(false);
         };
         fetchSites();
@@ -240,6 +243,26 @@ export default function AnalyticsDashboard() {
     const handleStartSetup = () => {
         setSetupStep('input');
         setView('setup');
+    };
+
+    const handleSaveBranding = async () => {
+        if (!newSiteId) return;
+
+        try {
+            const { error } = await supabase
+                .from('analytics_sites')
+                .update({
+                    site_title: metaTitle || null,
+                    logo_url: metaImage || null
+                })
+                .eq('id', newSiteId);
+
+            if (error) console.error('Error saving branding:', error);
+        } catch (e) {
+            console.error('Failed to save branding:', e);
+        }
+
+        setSetupStep('install');
     };
 
     const handleCreateSite = async (e: React.FormEvent) => {
@@ -503,7 +526,7 @@ export default function AnalyticsDashboard() {
                                         <p>High-fidelity tags are required for accurate impression tracking and social attribution.</p>
                                     </div>
                                     <button
-                                        onClick={() => setSetupStep('install')}
+                                        onClick={handleSaveBranding}
                                         className="w-full px-10 py-5 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-3"
                                     >
                                         Done! Show me the code <ArrowUpRight size={20} />
@@ -764,52 +787,59 @@ export default function AnalyticsDashboard() {
     return (
         <div className="space-y-6 md:space-y-8 animate-fade-in pb-32">
             {/* Header / Nav */}
-            <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-                <div className="flex items-center gap-4 w-full lg:w-auto">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm animate-fade-in relative overflow-hidden group">
+                {/* Visual Accent */}
+                <div className="absolute top-0 right-0 p-32 bg-blue-500/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none group-hover:bg-blue-500/10 transition-colors" />
+
+                <div className="flex items-start gap-6 relative z-10 w-full lg:w-auto">
                     <button
                         onClick={() => setView('list')}
-                        className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-all shrink-0"
+                        className="w-12 h-12 flex items-center justify-center rounded-2xl bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-all shrink-0 shadow-sm"
                     >
                         <ArrowLeft size={18} />
                     </button>
-                    <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 md:gap-3 mb-1">
-                            <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-white border border-slate-100 shadow-sm p-1 shrink-0 overflow-hidden flex items-center justify-center">
+
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                            <Activity size={12} className="text-blue-500" /> Tracking Website
+                        </span>
+                        <h2 className="text-4xl font-black text-slate-900 tracking-tight line-clamp-1">
+                            {currentSite?.site_title || currentSite?.domain}
+                        </h2>
+                        <div className="flex items-center text-slate-500 font-bold italic text-sm">
+                            <div className="w-5 h-5 rounded-md border border-slate-100 shadow-sm p-0.5 mr-2 shrink-0 bg-white">
                                 <img
                                     src={currentSite?.logo_url || `https://www.google.com/s2/favicons?domain=${currentSite?.domain}&sz=128`}
                                     alt="site logo"
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-cover rounded-[2px]"
                                     onError={(e) => {
                                         (e.target as HTMLImageElement).src = `https://www.google.com/s2/favicons?domain=${currentSite?.domain}&sz=128`;
                                     }}
                                 />
                             </div>
-                            <h2 className="text-xl md:text-3xl font-black text-slate-900 tracking-tight truncate">
-                                {currentSite?.domain}
-                            </h2>
-                        </div>
-                        <div className="flex items-center gap-2 text-slate-500 font-medium text-xs md:pl-11">
-                            <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1.5 shrink-0">
-                                <span className="relative flex h-2 w-2">
+                            <span className="opacity-75">{currentSite?.domain}</span>
+                            <span className="mx-3 text-slate-200 not-italic">|</span>
+                            <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full not-italic text-[10px] uppercase tracking-wider flex items-center gap-1.5 shrink-0 whitespace-nowrap border border-green-200">
+                                <span className="relative flex h-1.5 w-1.5">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
                                 </span>
-                                Live Data
+                                Live Feed
                             </span>
-                            <span className="text-slate-300">•</span>
-                            <span className="truncate">Analytics Dashboard</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="w-full lg:w-auto flex bg-slate-100 p-1 rounded-xl">
+                <div className="w-full lg:w-auto flex bg-slate-100 p-1 rounded-2xl relative z-10 shadow-inner">
                     {['24h', '7d', '30d'].map((range) => (
                         <button
                             key={range}
                             onClick={() => setTimeRange(range)}
                             className={cn(
-                                "flex-1 lg:flex-none px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all text-center",
-                                timeRange === range ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                                "flex-1 lg:flex-none px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all text-center",
+                                timeRange === range
+                                    ? "bg-white text-blue-600 shadow-xl shadow-blue-500/10 scale-[1.02]"
+                                    : "text-slate-500 hover:text-slate-800"
                             )}
                         >
                             {range}
