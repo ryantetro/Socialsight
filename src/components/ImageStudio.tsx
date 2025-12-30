@@ -16,6 +16,7 @@ export default function ImageStudio({ initialTitle, hostname, url }: ImageStudio
     const handleGenerate = async () => {
         if (!url) return;
         setIsGenerating(true);
+        setAiError(null);
         try {
             const response = await fetch('/api/screenshot', {
                 method: 'POST',
@@ -28,10 +29,13 @@ export default function ImageStudio({ initialTitle, hostname, url }: ImageStudio
                 const imageUrl = URL.createObjectURL(blob);
                 setGeneratedImage(imageUrl);
             } else {
+                const errorData = await response.json().catch(() => ({}));
+                setAiError(errorData.message || `Screenshot Failed (${response.status})`);
                 setGeneratedImage('/postgame-hero.png'); // Fallback
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Screenshot error", error);
+            setAiError(error.message || "Failed to connect to screenshot service.");
             setGeneratedImage('/postgame-hero.png');
         } finally {
             setIsGenerating(false);

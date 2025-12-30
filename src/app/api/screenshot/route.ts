@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium-min';
+import chromium from '@sparticuz/chromium';
 
 // Helper to find local Chrome for development
 const getLocalExePath = () => {
@@ -13,48 +13,70 @@ const getLocalExePath = () => {
     }
 }
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 30; // Max allowed for Vercel Hobby/Pro
+
 export async function POST(req: Request) {
+    let browser: any = null;
     try {
         const { url } = await req.json();
 
         if (!url) {
-            return new NextResponse("Missing URL", { status: 400 });
+            return new NextResponse(JSON.stringify({ error: "Missing URL" }), { status: 400 });
         }
+
+        console.log(`📸 Starting screenshot: ${url}`);
 
         const isProduction = process.env.NODE_ENV === 'production';
 
-        // Configure browser launch
-        const browser = await puppeteer.launch({
-            args: isProduction ? chromium.args : [],
-            defaultViewport: chromium.defaultViewport as any,
+        // Launch Browser
+        browser = await puppeteer.launch({
+            args: isProduction ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
+            defaultViewport: chromium.defaultViewport,
             executablePath: isProduction
-                ? await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v121.0.0/chromium-v121.0.0-pack.tar')
+                ? await chromium.executablePath()
                 : getLocalExePath(),
             headless: isProduction ? chromium.headless : true,
         });
 
         const page = await browser.newPage();
-
-        // Set viewport to standard OG image size (1200x630)
         await page.setViewport({ width: 1200, height: 630 });
 
-        await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
+        // Faster wait strategy
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
-        // Capture screenshot
-        const screenshot = await page.screenshot({ type: 'png' });
+        // Small delay for fonts/images
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        const screenshot = await page.screenshot({
+            type: 'png',
+            encoding: 'binary'
+        });
 
         await browser.close();
+        browser = null;
 
-        // Return image directly
         return new NextResponse(Buffer.from(screenshot), {
+            status: 200,
             headers: {
                 'Content-Type': 'image/png',
                 'Cache-Control': 'public, max-age=3600',
             },
         });
 
-    } catch (error) {
-        console.error("Screenshot Failed", error);
-        return new NextResponse("Failed to generate screenshot", { status: 500 });
+    } catch (error: any) {
+        console.error("❌ Screenshot Failed:", error.message);
+        if (browser) {
+            try { await browser.close(); } catch (e) { }
+        }
+
+        return new NextResponse(JSON.stringify({
+            error: "Capture Failed",
+            message: error.message,
+            stack: isProduction ? undefined : error.stack
+        }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
     }
 }
