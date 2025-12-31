@@ -31,13 +31,48 @@ export async function POST(req: NextRequest) {
             return `${baseUrl}/${path}`;
         };
 
+        const checkReachability = async (imgUrl?: string) => {
+            if (!imgUrl) return false;
+            try {
+                const response = await axios.head(imgUrl, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (compatible; SocialSightBot/1.0)',
+                    },
+                    timeout: 5000,
+                    validateStatus: (status) => status === 200,
+                });
+                return response.status === 200;
+            } catch (e) {
+                // If HEAD fails, try a GET with range header or just small timeout
+                try {
+                    const response = await axios.get(imgUrl, {
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (compatible; SocialSightBot/1.0)',
+                            'Range': 'bytes=0-0'
+                        },
+                        timeout: 5000,
+                        validateStatus: (status) => status < 400,
+                    });
+                    return response.status < 400;
+                } catch (e2) {
+                    return false;
+                }
+            }
+        };
+
         // Deep extraction for images
-        const ogImage = $('meta[property="og:image"]').attr('content') ||
+        const rawOgImage = $('meta[property="og:image"]').attr('content') ||
             $('meta[name="og:image"]').attr('content');
-        const twitterImage = $('meta[name="twitter:image"]').attr('content') ||
+        const rawTwitterImage = $('meta[name="twitter:image"]').attr('content') ||
             $('meta[property="twitter:image"]').attr('content');
         const imageSrc = $('link[rel="image_src"]').attr('href');
         const itemPropImage = $('meta[itemprop="image"]').attr('content');
+
+        const resolvedOgImage = resolveUrl(rawOgImage || imageSrc || itemPropImage);
+        const resolvedTwitterImage = resolveUrl(rawTwitterImage || rawOgImage || imageSrc);
+
+        const isOgImageValid = await checkReachability(resolvedOgImage);
+        const isTwitterImageValid = await checkReachability(resolvedTwitterImage);
 
         const metadata = {
             url: url,
@@ -46,11 +81,11 @@ export async function POST(req: NextRequest) {
             description: ($('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || '').trim(),
             ogTitle: $('meta[property="og:title"]').attr('content'),
             ogDescription: $('meta[property="og:description"]').attr('content'),
-            ogImage: resolveUrl(ogImage || imageSrc || itemPropImage),
+            ogImage: resolvedOgImage,
             twitterCard: $('meta[name="twitter:card"]').attr('content'),
             twitterTitle: $('meta[name="twitter:title"]').attr('content'),
             twitterDescription: $('meta[name="twitter:description"]').attr('content'),
-            twitterImage: resolveUrl(twitterImage || ogImage || imageSrc),
+            twitterImage: resolvedTwitterImage,
             favicon: resolveUrl($('link[rel="icon"]').attr('href') || $('link[rel="shortcut icon"]').attr('href') || '/favicon.ico'),
         };
 
@@ -58,9 +93,15 @@ export async function POST(req: NextRequest) {
         let score = 100;
         const issues: { priority: 'high' | 'medium' | 'low'; message: string; }[] = [];
 
-        if (!metadata.ogImage && !metadata.twitterImage) {
+        if (!resolvedOgImage || !isOgImageValid) {
             score -= 30;
-            issues.push({ priority: 'high', message: 'Missing social share image (og:image)' });
+            issues.push({
+                priority: 'high',
+                message: !resolvedOgImage ? 'Missing social share image (og:image)' : 'Social share image is broken or inaccessible (404/Restricted)'
+            });
+        } else if (!resolvedTwitterImage || !isTwitterImageValid) {
+            // If OG is valid but Twitter is missing/broken, small penalty or just info
+            // For now, let's keep it simple: if OG is good, we are mostly happy.
         }
 
         if (!metadata.description && !metadata.ogDescription) {
