@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium-min';
+import chromium from '@sparticuz/chromium';
 
 // Helper to find local Chrome for development
 const getLocalExePath = () => {
@@ -28,18 +28,19 @@ export async function POST(req: Request) {
         }
 
         console.log(`📸 Starting screenshot: ${url}`);
+        console.log(`🚀 Env: ${process.env.NODE_ENV}, Node: ${process.version}, OS: ${process.platform}`);
 
-        // Launch Browser with AL2023 compatibility
+        // Launch Browser
+        // Using full package (v126) for AL2023 compatibility
         browser = await puppeteer.launch({
             args: isProduction
                 ? [...chromium.args, '--disable-gpu', '--disable-dev-shm-usage', '--single-process', '--no-zygote']
                 : ['--no-sandbox', '--disable-setuid-sandbox'],
             defaultViewport: chromium.defaultViewport as any,
             executablePath: isProduction
-                ? await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar')
+                ? await chromium.executablePath()
                 : getLocalExePath(),
             headless: isProduction ? chromium.headless : true,
-            ignoreHTTPSErrors: true,
         } as any);
 
         const page = await browser.newPage();
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
         return new NextResponse(JSON.stringify({
             error: "Capture Failed",
             message: error.message,
-            stack: isProduction ? undefined : error.stack
+            log: `Node: ${process.version}, Platform: ${process.platform}`
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
