@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
+import chromium from '@sparticuz/chromium-min';
 
 // Helper to find local Chrome for development
 const getLocalExePath = () => {
@@ -31,21 +31,21 @@ export async function POST(req: Request) {
 
         // Launch Browser
         browser = await puppeteer.launch({
-            args: isProduction ? (chromium as any).args : ['--no-sandbox', '--disable-setuid-sandbox'],
-            defaultViewport: (chromium as any).defaultViewport,
+            args: isProduction ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
+            defaultViewport: chromium.defaultViewport as any,
             executablePath: isProduction
-                ? await (chromium as any).executablePath()
+                ? await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar')
                 : getLocalExePath(),
-            headless: isProduction ? (chromium as any).headless : true,
+            headless: isProduction ? chromium.headless : true,
         } as any);
 
         const page = await browser.newPage();
         await page.setViewport({ width: 1200, height: 630 });
 
-        // Faster wait strategy
+        // Faster wait strategy to prevent Vercel timeouts
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
-        // Small delay for fonts/images
+        // Small delay for settling
         await new Promise(resolve => setTimeout(resolve, 1500));
 
         const screenshot = await page.screenshot({
