@@ -33,8 +33,8 @@
         // Or we just hardcode the production URL for the user. 
         // Users will likely include this from 'https://our-domain.com/pixel.js'
 
-        // Dynamic host determination (assuming pixel is served from the same domain as API)
-        const apiHost = new URL(currentScript.src).origin;
+        // Hardcoded production URL for reliability on launch
+        const apiHost = "https://socialsight.dev";
 
         fetch(`${apiHost}/api/track`, {
             method: 'POST',
@@ -79,8 +79,8 @@
 
         const isOutbound = isLink ? (link.hostname !== window.location.hostname) : false;
 
-        // Custom Payload
-        const apiHost = new URL(currentScript.src).origin;
+        // Hardcoded production URL for reliability on launch
+        const apiHost = "https://socialsight.dev";
         const payload = {
             site_id: siteId,
             event_type: 'click',

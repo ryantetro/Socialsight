@@ -1,4 +1,4 @@
-import { Copy, Check, Code2 } from 'lucide-react';
+import { Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 
 interface MetaSnippetProps {
@@ -20,8 +20,9 @@ export default function MetaSnippet({ title, description, image, url, siteId = '
     const finalUrl = `${url}${trackingParams}`;
 
     // Generate Script Snippet
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://socialsight.dev';
     const scriptCode = `<!-- SocialSight Tracking Pixel -->
-<script async src="https://cdn.previewperfect.ai/pixel.js" data-id="${siteId}"></script>`;
+<script async src="${baseUrl}/pixel.js" data-id="${siteId}"></script>`;
 
     const code = `<!-- Primary Meta Tags -->
 <title>${title}</title>

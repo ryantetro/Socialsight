@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30; // Max allowed for Vercel Hobby/Pro
 
 export async function POST(req: Request) {
-    let browser: any = null;
+    let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
     const isProduction = process.env.NODE_ENV === 'production';
 
     try {
@@ -29,16 +29,15 @@ export async function POST(req: Request) {
 
         console.log(`📸 Starting screenshot: ${url}`);
 
-        // Launch Browser - Matched Chromium 132 + Puppeteer 23.11 for Vercel AL2023
+        // Launch Browser - Matched Chromium 141 + Puppeteer 24.23 for Vercel AL2023
         browser = await puppeteer.launch({
             args: isProduction
                 ? [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox']
                 : ['--no-sandbox', '--disable-setuid-sandbox'],
-            defaultViewport: chromium.defaultViewport as any,
             executablePath: isProduction
                 ? await chromium.executablePath()
                 : getLocalExePath(),
-            headless: isProduction ? chromium.headless : true,
+            headless: isProduction ? ((chromium as any).headless as boolean) : true,
             ignoreHTTPSErrors: true,
         } as any);
 
@@ -53,7 +52,6 @@ export async function POST(req: Request) {
 
         const screenshot = await page.screenshot({
             type: 'png',
-            encoding: 'binary'
         });
 
         await browser.close();
@@ -67,16 +65,17 @@ export async function POST(req: Request) {
             },
         });
 
-    } catch (error: any) {
-        console.error("❌ Screenshot Failed:", error.message);
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error("❌ Screenshot Failed:", errorMessage);
         if (browser) {
-            try { await browser.close(); } catch (e) { }
+            try { await browser.close(); } catch { }
         }
 
         return new NextResponse(JSON.stringify({
             error: "Capture Failed",
-            message: error.message,
-            context: "Chromium 132 + Puppeteer 23.11 AL2023 Fix"
+            message: errorMessage,
+            context: "Chromium 141 + Puppeteer 24.23 AL2023 Final Fix"
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }

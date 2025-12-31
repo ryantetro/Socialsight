@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Analytics } from "@vercel/analytics/next";
+import { headers } from 'next/headers';
 
 export const metadata: Metadata = {
   title: 'Social Sight | The best way to track OG tags',
@@ -39,24 +40,26 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Dynamic Dogfooding: Fetch the actual ID for socialsight.dev from the DB
+  // Dynamic Dogfooding: Fetch the actual ID for the CURRENT host from the DB
   // This ensures that if we reset the DB/dashboard, the pixel stays in sync.
   let trackingId = 'pp_d31c3026'; // Fallback
   try {
+    const host = (await headers()).get('host') || 'socialsight.dev';
+
     // We import dynamically to avoid build-time static issues if env vars aren't ready
     const { createClient } = await import('@/lib/supabase/server');
     const supabase = await createClient();
     const { data } = await supabase
       .from('analytics_sites')
       .select('id')
-      .ilike('domain', '%socialsight.dev%')
+      .ilike('domain', `%${host.replace('www.', '')}%`)
       .limit(1)
       .single();
 
     if (data?.id) {
       trackingId = data.id;
     }
-  } catch (e) {
+  } catch {
     // console.warn('Could not fetch dynamic tracking ID, using fallback');
   }
 
@@ -64,8 +67,8 @@ export default async function RootLayout({
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <body>
         {children}
-        {/* SocialSight Tracking Pixel (Dynamic Dogfooding) */}
-        <script async src="https://cdn.previewperfect.ai/pixel.js" data-id={trackingId}></script>
+        {/* SocialSight Tracking Pixel (Local Source) */}
+        <script async src="/pixel.js" data-id={trackingId}></script>
         <Analytics />
       </body>
     </html>
