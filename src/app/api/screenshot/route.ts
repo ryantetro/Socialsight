@@ -18,6 +18,8 @@ export const maxDuration = 30; // Max allowed for Vercel Hobby/Pro
 
 export async function POST(req: Request) {
     let browser: any = null;
+    const isProduction = process.env.NODE_ENV === 'production';
+
     try {
         const { url } = await req.json();
 
@@ -27,17 +29,15 @@ export async function POST(req: Request) {
 
         console.log(`📸 Starting screenshot: ${url}`);
 
-        const isProduction = process.env.NODE_ENV === 'production';
-
         // Launch Browser
         browser = await puppeteer.launch({
-            args: isProduction ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
-            defaultViewport: chromium.defaultViewport,
+            args: isProduction ? (chromium as any).args : ['--no-sandbox', '--disable-setuid-sandbox'],
+            defaultViewport: (chromium as any).defaultViewport,
             executablePath: isProduction
-                ? await chromium.executablePath()
+                ? await (chromium as any).executablePath()
                 : getLocalExePath(),
-            headless: isProduction ? chromium.headless : true,
-        });
+            headless: isProduction ? (chromium as any).headless : true,
+        } as any);
 
         const page = await browser.newPage();
         await page.setViewport({ width: 1200, height: 630 });
