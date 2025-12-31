@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
+import path from 'path';
 
 // Helper to find local Chrome for development
 const getLocalExePath = () => {
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
                 ? [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox']
                 : ['--no-sandbox', '--disable-setuid-sandbox'],
             executablePath: isProduction
-                ? await chromium.executablePath('/var/task/node_modules/@sparticuz/chromium/bin')
+                ? await chromium.executablePath(path.join(process.cwd(), 'node_modules/@sparticuz/chromium/bin'))
                 : getLocalExePath(),
             headless: isProduction ? ((chromium as any).headless as boolean) : true,
             ignoreHTTPSErrors: true,
