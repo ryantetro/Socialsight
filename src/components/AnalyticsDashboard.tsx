@@ -1061,11 +1061,11 @@ export default function AnalyticsDashboard() {
                         </div>
                     </div>
 
-                    <div className="bg-zinc-950 p-6 rounded-[2rem] text-white min-h-[200px] shadow-xl">
-                        <h3 className="font-bold flex items-center gap-2 text-xs uppercase tracking-widest text-zinc-500 mb-6">
+                    <div className="bg-zinc-950 p-6 rounded-[2rem] text-white shadow-xl flex flex-col h-[400px]">
+                        <h3 className="font-bold flex items-center gap-2 text-xs uppercase tracking-widest text-zinc-500 mb-6 shrink-0">
                             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /> Live Feed
                         </h3>
-                        <div className="space-y-4">
+                        <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar">
                             {events.map((item, i) => (
                                 <div key={i} className="flex items-center gap-3 text-sm">
                                     <div className="w-8 h-8 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center font-black text-xs shrink-0">{item.platform[0]}</div>
@@ -1078,6 +1078,12 @@ export default function AnalyticsDashboard() {
                                     </div>
                                 </div>
                             ))}
+                            {events.length === 0 && (
+                                <div className="h-full flex flex-col items-center justify-center text-zinc-600 text-xs italic gap-2 opacity-50">
+                                    <div className="w-8 h-8 rounded-full border border-zinc-800 border-dashed animate-spin" />
+                                    Waiting for events...
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
