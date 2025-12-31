@@ -29,14 +29,17 @@ export async function POST(req: Request) {
 
         console.log(`📸 Starting screenshot: ${url}`);
 
-        // Launch Browser
+        // Launch Browser with AL2023 compatibility
         browser = await puppeteer.launch({
-            args: isProduction ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
+            args: isProduction
+                ? [...chromium.args, '--disable-gpu', '--disable-dev-shm-usage', '--single-process', '--no-zygote']
+                : ['--no-sandbox', '--disable-setuid-sandbox'],
             defaultViewport: chromium.defaultViewport as any,
             executablePath: isProduction
                 ? await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar')
                 : getLocalExePath(),
             headless: isProduction ? chromium.headless : true,
+            ignoreHTTPSErrors: true,
         } as any);
 
         const page = await browser.newPage();
