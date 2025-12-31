@@ -33,8 +33,12 @@
         // Or we just hardcode the production URL for the user. 
         // Users will likely include this from 'https://our-domain.com/pixel.js'
 
-        // Hardcoded production URL for reliability on launch
-        const apiHost = "https://socialsight.dev";
+        // Detect host dynamically from script source to avoid CORS/redirect issues
+        // We use www.socialsight.dev as the production primary to match your Vercel setup
+        let apiHost = "https://www.socialsight.dev";
+        if (currentScript.src.includes('localhost')) apiHost = 'http://localhost:3000';
+
+        console.log('SocialSight Pixel: Sending page_view...', payload);
 
         fetch(`${apiHost}/api/track`, {
             method: 'POST',
@@ -79,8 +83,10 @@
 
         const isOutbound = isLink ? (link.hostname !== window.location.hostname) : false;
 
-        // Hardcoded production URL for reliability on launch
-        const apiHost = "https://socialsight.dev";
+        // Detect host dynamically from script source to avoid CORS/redirect issues
+        // We use www.socialsight.dev as the production primary to match your Vercel setup
+        let apiHost = "https://www.socialsight.dev";
+        if (currentScript.src.includes('localhost')) apiHost = 'http://localhost:3000';
         const payload = {
             site_id: siteId,
             event_type: 'click',
@@ -93,6 +99,8 @@
                 is_tracked_element: !!trackedElement
             }
         };
+
+        console.log('SocialSight Pixel: Sending click event...', payload);
 
         // Use sendBeacon for reliability on navigation
         if (navigator.sendBeacon) {

@@ -21,6 +21,7 @@ export async function POST(request: Request) {
 
         // Basic validation
         if (!site_id || !event_type) {
+            console.warn('⚠️ Tracking: Missing fields', { site_id, event_type });
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400, headers });
         }
 
@@ -68,10 +69,11 @@ export async function POST(request: Request) {
             });
 
         if (error) {
-            console.error('Supabase Error:', error);
+            console.error('❌ Tracking: Supabase Error:', error);
             return NextResponse.json({ error: 'Error recording event: ' + error.message }, { status: 500, headers });
         }
 
+        console.log(`✅ Tracking: Success for ${site_id} (${normalizedEventType}) from ${source}`);
         return NextResponse.json({ success: true }, { status: 200, headers });
 
     } catch (e) {
