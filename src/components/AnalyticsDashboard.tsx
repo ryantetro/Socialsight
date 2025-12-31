@@ -863,67 +863,67 @@ export default function AnalyticsDashboard() {
 
     return (
         <div className="space-y-6 md:space-y-8 animate-fade-in pb-32">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm animate-fade-in relative overflow-hidden group">
-                <div className="flex items-start gap-6 relative z-10 w-full lg:w-auto">
-                    <button
-                        onClick={() => setView('list')}
-                        className="w-12 h-12 flex items-center justify-center rounded-2xl bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-all shrink-0 shadow-sm"
-                    >
-                        <ArrowLeft size={18} />
-                    </button>
+            <div className="bg-white p-4 md:p-8 rounded-[1.5rem] md:rounded-[2.5rem] border border-slate-200 shadow-sm animate-fade-in relative overflow-hidden">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+                    <div className="flex items-center gap-3 md:gap-6">
+                        <button
+                            onClick={() => setView('list')}
+                            className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-all shrink-0 border border-slate-100 shadow-sm"
+                        >
+                            <ArrowLeft size={18} />
+                        </button>
 
-                    <div className="space-y-1.5 min-w-0 flex-1">
-                        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                            Scanning Website {isRefreshing && <Loader2 size={12} className="animate-spin text-blue-600" />}
-                        </span>
-                        <h2 className={cn("text-4xl font-black text-slate-900 tracking-tight line-clamp-1 transition-opacity", isRefreshing && "opacity-50")}>
-                            {currentSite?.site_title || currentSite?.domain}
-                        </h2>
-                        <div className="flex items-center text-slate-500 font-semibold italic">
-                            <img
-                                src={currentSite?.favicon_url || (currentSite?.domain.includes('socialsight.dev') ? '/favicon.png' : `https://${currentSite?.domain}/favicon.ico`)}
-                                alt=""
-                                className="w-5 h-5 rounded mr-2 shrink-0 object-contain"
-                                onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    if (currentSite?.domain.includes('socialsight.dev')) {
-                                        target.src = '/favicon.png';
-                                    } else {
-                                        target.src = `https://www.google.com/s2/favicons?domain=${currentSite?.domain}&sz=64`;
-                                    }
-                                }}
-                            />
-                            <span className="opacity-75">{currentSite?.domain}</span>
-                            <span className="mx-3 text-slate-200 not-italic">|</span>
-                            <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full not-italic text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shrink-0 whitespace-nowrap border border-green-100">
-                                Live Feed
-                            </span>
+                        <div className="min-w-0 flex-1">
+                            <h2 className={cn("text-xl md:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight truncate transition-opacity", isRefreshing && "opacity-50")}>
+                                {currentSite?.site_title || currentSite?.domain}
+                            </h2>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <div className="flex items-center text-slate-400 font-medium text-[10px] md:text-sm">
+                                    <img
+                                        src={currentSite?.favicon_url || (currentSite?.domain.includes('socialsight.dev') ? '/favicon.png' : `https://${currentSite?.domain}/favicon.ico`)}
+                                        alt=""
+                                        className="w-3.5 h-3.5 md:w-5 md:h-5 rounded-sm mr-2 shrink-0 object-contain"
+                                        onError={(e) => {
+                                            const target = e.target as HTMLImageElement;
+                                            if (currentSite?.domain.includes('socialsight.dev')) {
+                                                target.src = '/favicon.png';
+                                            } else {
+                                                target.src = `https://www.google.com/s2/favicons?domain=${currentSite?.domain}&sz=64`;
+                                            }
+                                        }}
+                                    />
+                                    <span className="truncate max-w-[120px] md:max-w-none font-semibold text-slate-500">{currentSite?.domain}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 bg-green-50 border border-green-100 px-2 py-0.5 rounded-md">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                    <span className="text-green-600 text-[10px] font-black uppercase tracking-widest">Live</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div className="w-full lg:w-auto flex items-center gap-3 relative z-10">
-                    <button
-                        onClick={() => currentSite && loadDashboardData(currentSite.id)}
-                        className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 shadow-sm rounded-xl text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-all active:scale-95"
-                        title="Refresh Data"
-                    >
-                        <RefreshCw size={16} className={cn("transition-all", isRefreshing && "animate-spin text-blue-600")} />
-                    </button>
-
-                    <div className="flex bg-slate-50 p-1 rounded-2xl border border-slate-100">
-                        {['24h', '7d', '30d'].map((range) => (
-                            <button
-                                key={range}
-                                onClick={() => setTimeRange(range)}
-                                className={cn(
-                                    "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-center",
-                                    timeRange === range ? "bg-white text-blue-600 shadow-sm border border-slate-200/50" : "text-slate-400 hover:text-slate-600"
-                                )}
-                            >
-                                {range}
-                            </button>
-                        ))}
+                    <div className="flex items-center gap-2 md:gap-4 w-full lg:w-auto">
+                        <div className="flex-1 lg:flex-initial flex bg-slate-50 p-1.5 rounded-xl border border-slate-100/80 shadow-inner">
+                            {['24h', '7d', '30d'].map((range) => (
+                                <button
+                                    key={range}
+                                    onClick={() => setTimeRange(range)}
+                                    className={cn(
+                                        "flex-1 lg:px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                                        timeRange === range ? "bg-white text-blue-600 shadow-sm border border-slate-200/50" : "text-slate-400 hover:text-slate-600"
+                                    )}
+                                >
+                                    {range}
+                                </button>
+                            ))}
+                        </div>
+                        <button
+                            onClick={() => currentSite && loadDashboardData(currentSite.id)}
+                            className="w-11 h-11 flex items-center justify-center bg-white border border-slate-200 shadow-sm rounded-xl text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:shadow-md active:scale-95 transition-all shrink-0"
+                            title="Refresh Data"
+                        >
+                            <RefreshCw size={16} className={cn(isRefreshing && "animate-spin text-blue-600")} />
+                        </button>
                     </div>
                 </div>
             </div>

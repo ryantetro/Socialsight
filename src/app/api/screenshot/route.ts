@@ -35,7 +35,7 @@ export async function POST(req: Request) {
                 ? [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox']
                 : ['--no-sandbox', '--disable-setuid-sandbox'],
             executablePath: isProduction
-                ? await chromium.executablePath()
+                ? await chromium.executablePath('/var/task/node_modules/@sparticuz/chromium/bin')
                 : getLocalExePath(),
             headless: isProduction ? ((chromium as any).headless as boolean) : true,
             ignoreHTTPSErrors: true,
