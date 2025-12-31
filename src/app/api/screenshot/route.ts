@@ -28,19 +28,18 @@ export async function POST(req: Request) {
         }
 
         console.log(`📸 Starting screenshot: ${url}`);
-        console.log(`🚀 Env: ${process.env.NODE_ENV}, Node: ${process.version}, OS: ${process.platform}`);
 
-        // Launch Browser
-        // Using full package (v126) for AL2023 compatibility
+        // Launch Browser - Matched Chromium 132 + Puppeteer 23.11 for Vercel AL2023
         browser = await puppeteer.launch({
             args: isProduction
-                ? [...chromium.args, '--disable-gpu', '--disable-dev-shm-usage', '--single-process', '--no-zygote']
+                ? [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox']
                 : ['--no-sandbox', '--disable-setuid-sandbox'],
             defaultViewport: chromium.defaultViewport as any,
             executablePath: isProduction
                 ? await chromium.executablePath()
                 : getLocalExePath(),
             headless: isProduction ? chromium.headless : true,
+            ignoreHTTPSErrors: true,
         } as any);
 
         const page = await browser.newPage();
@@ -77,7 +76,7 @@ export async function POST(req: Request) {
         return new NextResponse(JSON.stringify({
             error: "Capture Failed",
             message: error.message,
-            log: `Node: ${process.version}, Platform: ${process.platform}`
+            context: "Chromium 132 + Puppeteer 23.11 AL2023 Fix"
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
