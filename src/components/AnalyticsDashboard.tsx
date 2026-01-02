@@ -66,16 +66,19 @@ export default function AnalyticsDashboard() {
 
     // Colors for consistency: Twitter(black), LinkedIn(blue), FB(royal), Direct(slate), Google(red), etc.
     const SOURCE_COLORS: Record<string, string> = {
-        'twitter': '#1DA1F2', // Twitter Blue (or X black, user preference? sticking to blue for recognition or black for brand?) User showed black in screenshot initially, but maybe prefers blue? actually X is black. Let's stick to user's 'Twitter' label. 
+        'twitter': '#1DA1F2',
         'x': '#000000',
         'linkedin': '#0077b5',
         'facebook': '#1877f2',
         'direct': '#64748b',
         'google': '#ea4335',
+        'producthunt': '#da552f',
+        'hacker news': '#ff6600',
+        'reddit': '#ff4500',
         'imessage': '#34c759',
         'whatsapp': '#25d366',
         'search': '#fbbc05',
-        'referral': '#8b5cf6', // Violet for generic referral
+        'referral': '#8b5cf6',
         'other': '#94a3b8'
     };
 
@@ -304,12 +307,18 @@ export default function AnalyticsDashboard() {
         setTotals(newTotals);
 
         // Process Recent Events Feed
-        const recent = eventsData.slice(0, 10).map(e => ({
-            platform: e.source ? (e.source.charAt(0).toUpperCase() + e.source.slice(1)) : 'Direct',
-            action: e.event_type === 'page_view' ? 'viewed page' : 'clicked link',
-            time: new Date(e.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            timestamp: new Date(e.created_at).getTime()
-        }));
+        const recent = eventsData.slice(0, 10).map(e => {
+            const rawSource = e.source || 'direct';
+            const label = rawSource === 'direct' ? 'Direct' :
+                rawSource.split(' ').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+
+            return {
+                platform: label,
+                action: e.event_type === 'page_view' ? 'viewed page' : 'clicked link',
+                time: new Date(e.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                timestamp: new Date(e.created_at).getTime()
+            };
+        });
         setEvents(recent);
 
         // Process Chart Data
@@ -365,7 +374,8 @@ export default function AnalyticsDashboard() {
             .sort(([, a], [, b]) => b - a)
             .slice(0, 4)
             .map(([name, count]) => ({
-                name: name.charAt(0).toUpperCase() + name.slice(1),
+                name: name === 'direct' ? 'Direct' :
+                    name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
                 value: count,
                 color: SOURCE_COLORS[name.toLowerCase()] || '#94a3b8'
             }));

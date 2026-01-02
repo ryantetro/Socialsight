@@ -9,8 +9,12 @@
         return;
     }
 
-    // Capture Page View
     const trackPageView = () => {
+        // Live Stealth Mode Check
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('ss_stealth_mode') === 'true') {
+            console.log('SocialSight Pixel: Stealth Mode Active - Page View Tracking Blocked.');
+            return;
+        }
         // Parse Query Params (UTM, Ref)
         const params = {};
         const searchParams = new URLSearchParams(window.location.search);
@@ -24,6 +28,7 @@
             path: window.location.pathname,
             referrer: document.referrer || null,
             params: {
+                ...params,
                 ab_variant: window.SS_VARIANT || 'none',
                 pricing_variant: window.SS_PRICING_VARIANT || 'none'
             }
@@ -62,6 +67,12 @@
     // Capture Clicks
     // Capture Clicks
     document.addEventListener('click', (e) => {
+        // Live Stealth Mode Check
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('ss_stealth_mode') === 'true') {
+            console.log('SocialSight Pixel: Stealth Mode Active - Click Tracking Blocked.');
+            return;
+        }
+
         // 1. Check for standard Links
         const link = e.target.closest('a');
 

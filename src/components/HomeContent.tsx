@@ -40,6 +40,7 @@ export default function HomeContent() {
   const [currentNotificationIndex, setCurrentNotificationIndex] = useState(0);
   const [isNotificationVisible, setIsNotificationVisible] = useState(false);
   const [shouldRenderNotification, setShouldRenderNotification] = useState(false);
+  const [isStealth, setIsStealth] = useState(false);
 
   // Initialize from localStorage immediately if possible, but safely for SSR.
   const [activeTab, setActiveTabState] = useState<'audit' | 'fix' | 'compare' | 'monitor' | 'analytics' | 'history'>('audit');
@@ -51,6 +52,9 @@ export default function HomeContent() {
     if (saved && ['audit', 'fix', 'compare', 'monitor', 'analytics', 'history'].includes(saved)) {
       setActiveTabState(saved as any);
     }
+
+    const stealth = localStorage.getItem('ss_stealth_mode') === 'true';
+    setIsStealth(stealth);
   }, []);
 
   // Persistence: Write on change
@@ -494,6 +498,11 @@ export default function HomeContent() {
           setPricingVariant(variant);
           localStorage.setItem('ss_pricing_variant', variant);
           (window as any).SS_PRICING_VARIANT = variant;
+        }}
+        isStealth={isStealth}
+        onStealthChange={(active) => {
+          setIsStealth(active);
+          localStorage.setItem('ss_stealth_mode', active.toString());
         }}
       />
 

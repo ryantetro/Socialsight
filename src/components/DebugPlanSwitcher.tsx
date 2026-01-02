@@ -12,6 +12,8 @@ interface DebugPlanSwitcherProps {
     onVariantChange: (variant: 'A' | 'B') => void;
     currentPricingVariant: 'A' | 'B' | null;
     onPricingVariantChange: (variant: 'A' | 'B') => void;
+    isStealth: boolean;
+    onStealthChange: (active: boolean) => void;
 }
 
 export default function DebugPlanSwitcher({
@@ -20,7 +22,9 @@ export default function DebugPlanSwitcher({
     currentVariant,
     onVariantChange,
     currentPricingVariant,
-    onPricingVariantChange
+    onPricingVariantChange,
+    isStealth,
+    onStealthChange
 }: DebugPlanSwitcherProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [isVisible, setIsVisible] = useState(false);
@@ -127,6 +131,24 @@ export default function DebugPlanSwitcher({
                                     </button>
                                 ))}
                             </div>
+                        </section>
+
+                        <section className="pt-3 border-t border-slate-800">
+                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Analytics</h4>
+                            <button
+                                onClick={() => onStealthChange(!isStealth)}
+                                className={cn(
+                                    "w-full px-3 py-2 text-xs font-bold rounded-lg transition-colors border",
+                                    isStealth
+                                        ? "bg-blue-600 text-white border-blue-500"
+                                        : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-white"
+                                )}
+                            >
+                                {isStealth ? "Stealth Mode: ON" : "Stealth Mode: OFF"}
+                            </button>
+                            <p className="mt-1.5 text-[9px] text-slate-500 leading-tight">
+                                {isStealth ? "Tracking disabled for this browser." : "Your visits are being tracked."}
+                            </p>
                         </section>
                     </div>
 

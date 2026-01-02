@@ -34,20 +34,30 @@ export async function POST(request: Request) {
         // Vercel passes the country in this header. We store only the country code, no IP.
         const country = request.headers.get('x-vercel-ip-country') || 'Unknown';
 
-        // Feature 3: Source Detection
-        // Priority: UTM Params > Referrer > Direct
+        // Feature 3: Robust Source Detection
         let source = 'direct';
-
         const utmSource = params?.utm_source || params?.source || params?.ref;
 
         if (utmSource) {
             source = utmSource.toLowerCase();
         } else if (referrer) {
-            if (referrer.includes('t.co') || referrer.includes('twitter')) source = 'twitter';
-            else if (referrer.includes('linkedin')) source = 'linkedin';
-            else if (referrer.includes('facebook')) source = 'facebook';
-            else if (referrer.includes('google')) source = 'search';
-            else source = 'referral';
+            try {
+                const refUrl = new URL(referrer);
+                const host = refUrl.hostname.replace('www.', '');
+
+                // Friendly Mappings
+                if (host.includes('t.co') || host.includes('twitter') || host.includes('x.com')) source = 'twitter';
+                else if (host.includes('linkedin')) source = 'linkedin';
+                else if (host.includes('facebook') || host.includes('fb.com')) source = 'facebook';
+                else if (host.includes('google')) source = 'search';
+                else if (host.includes('producthunt')) source = 'producthunt';
+                else if (host.includes('news.ycombinator.com')) source = 'hacker news';
+                else if (host.includes('reddit')) source = 'reddit';
+                else if (host.includes('bing') || host.includes('duckduckgo') || host.includes('yahoo')) source = 'search';
+                else source = host; // Use the actual domain (e.g. indiehackers.com)
+            } catch (e) {
+                source = 'referral';
+            }
         }
 
         // Normalize event_type to match DB Enum
