@@ -62,6 +62,7 @@ export default function AnalyticsDashboard() {
     const [deviceStats, setDeviceStats] = useState<{ name: string, value: number, color: string }[]>([]);
     const [countryStats, setCountryStats] = useState<{ code: string, name: string, count: number, percent: number }[]>([]);
     const [abStats, setAbStats] = useState<ABStats[]>([]);
+    const [pricingStats, setPricingStats] = useState<ABStats[]>([]);
 
     // Colors for consistency: Twitter(black), LinkedIn(blue), FB(royal), Direct(slate), Google(red), etc.
     const SOURCE_COLORS: Record<string, string> = {
@@ -425,31 +426,53 @@ export default function AnalyticsDashboard() {
             }));
         setCountryStats(countryList);
 
-        // Process A/B Experiments
+        // Process A/B Experiments (Landing vs Pricing)
         const abMap: Record<string, { impressions: number, audits: number }> = {
+            'A': { impressions: 0, audits: 0 },
+            'B': { impressions: 0, audits: 0 }
+        };
+        const pMap: Record<string, { impressions: number, audits: number }> = {
             'A': { impressions: 0, audits: 0 },
             'B': { impressions: 0, audits: 0 }
         };
 
         eventsData.forEach(e => {
+            // Landing Variant
             const variant = e.ab_variant || (e.params?.ab_variant as string) || 'none';
             if (variant === 'A' || variant === 'B') {
                 if (e.event_type === 'page_view' || e.event_type === 'impression') {
                     abMap[variant].impressions++;
                 } else if (e.event_type === 'click' && ((e.params?.text as string)?.includes('audit-btn'))) {
-                    // Count clicks on the audit button as "audits"
                     abMap[variant].audits++;
+                }
+            }
+
+            // Pricing Variant
+            const pVariant = e.pricing_variant || (e.params?.pricing_variant as string) || 'none';
+            if (pVariant === 'A' || pVariant === 'B') {
+                if (e.event_type === 'page_view' || e.event_type === 'impression') {
+                    pMap[pVariant].impressions++;
+                } else if (e.event_type === 'click' && ((e.params?.text as string)?.includes('audit-btn'))) {
+                    pMap[pVariant].audits++;
                 }
             }
         });
 
         const abList: ABStats[] = Object.entries(abMap).map(([variant, data]) => ({
-            variant: `Variant ${variant}`,
+            variant: `Landing ${variant}`,
             impressions: data.impressions,
             audits: data.audits,
             conversionRate: data.impressions > 0 ? parseFloat(((data.audits / data.impressions) * 100).toFixed(1)) : 0
         }));
         setAbStats(abList);
+
+        const pList: ABStats[] = Object.entries(pMap).map(([variant, data]) => ({
+            variant: `Pricing ${variant}`,
+            impressions: data.impressions,
+            audits: data.audits,
+            conversionRate: data.impressions > 0 ? parseFloat(((data.audits / data.impressions) * 100).toFixed(1)) : 0
+        }));
+        setPricingStats(pList);
 
         // Cache the result
         localStorage.setItem(cacheKey, JSON.stringify({
@@ -1304,8 +1327,8 @@ export default function AnalyticsDashboard() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
-                    {abStats.map((stat, i) => (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 relative z-10">
+                    {[...abStats, ...pricingStats].map((stat, i) => (
                         <div key={i} className="bg-slate-50 rounded-3xl p-6 border border-slate-100 space-y-6">
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-black text-slate-900 uppercase tracking-widest">{stat.variant}</span>
@@ -1331,7 +1354,7 @@ export default function AnalyticsDashboard() {
                             </div>
                         </div>
                     ))}
-                    {abStats.length === 0 && (
+                    {abStats.length === 0 && pricingStats.length === 0 && (
                         <div className="col-span-2 py-12 text-center text-slate-400 italic font-medium">
                             Waiting for experimental data...
                         </div>

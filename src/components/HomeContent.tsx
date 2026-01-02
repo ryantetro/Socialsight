@@ -35,6 +35,7 @@ export default function HomeContent() {
   const [isRestoring, setIsRestoring] = useState(false);
   const [showVictoryModal, setShowVictoryModal] = useState(false);
   const [abVariant, setAbVariant] = useState<'A' | 'B' | null>(null);
+  const [pricingVariant, setPricingVariant] = useState<'A' | 'B' | null>(null);
   const [globalStats, setGlobalStats] = useState<{ totalScans: number, activity: any[] }>({ totalScans: 13530, activity: [] });
   const [currentNotificationIndex, setCurrentNotificationIndex] = useState(0);
   const [isNotificationVisible, setIsNotificationVisible] = useState(false);
@@ -58,6 +59,12 @@ export default function HomeContent() {
     localStorage.setItem('socialsight_active_tab', tab);
   };
 
+  const mainPriceId = pricingVariant === 'B'
+    ? process.env.NEXT_PUBLIC_STRIPE_PRICE_ALL_ACCESS
+    : process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD;
+
+  const mainPriceLabel = pricingVariant === 'B' ? '$9' : '$99';
+
 
   const [debugTier, setDebugTier] = useState<{ active: boolean, tier: any }>({ active: false, tier: 'free' });
 
@@ -67,10 +74,16 @@ export default function HomeContent() {
   const isDebugSignedOut = debugTier.active && debugTier.tier === 'signed-out';
   const user = isDebugSignedOut ? null : realUser;
 
+  // Determine if user has the new All-Access one-time tier
+  const hasAllAccess = profile?.tier === 'agency' && profile?.stripe_subscription_id?.startsWith('price_1SlEVY');
+
   // Use debug tier if active, otherwise fallback to real profile tier
   const effectiveTier = debugTier.active
     ? (isDebugSignedOut ? 'free' : debugTier.tier)
     : (profile?.tier || 'free');
+
+  // isPaid check should also consider the All-Access one-time payment
+  // Note: the profile logic might already map the tier based on webhook, but we'll be safe here.
 
   // BLOCKING: If auth is loading (fetching profile), show loader.
   // This prevents the "Free Tier" flash and ensures 'Agency' is ready before rendering content.
@@ -155,14 +168,23 @@ export default function HomeContent() {
 
   // A/B Variant Assignment
   useEffect(() => {
+    // Landing Page Variant
     let variant = localStorage.getItem('ss_ab_variant') as 'A' | 'B' | null;
     if (!variant) {
       variant = Math.random() > 0.5 ? 'B' : 'A';
       localStorage.setItem('ss_ab_variant', variant);
     }
     setAbVariant(variant);
-    // Expose to pixel.js
     (window as any).SS_VARIANT = variant;
+
+    // Pricing Variant
+    let pVariant = localStorage.getItem('ss_pricing_variant') as 'A' | 'B' | null;
+    if (!pVariant) {
+      pVariant = Math.random() > 0.5 ? 'B' : 'A';
+      localStorage.setItem('ss_pricing_variant', pVariant);
+    }
+    setPricingVariant(pVariant);
+    (window as any).SS_PRICING_VARIANT = pVariant;
   }, []);
 
   // Load Social Proof Stats
@@ -467,12 +489,18 @@ export default function HomeContent() {
           localStorage.setItem('ss_ab_variant', variant);
           (window as any).SS_VARIANT = variant;
         }}
+        currentPricingVariant={pricingVariant}
+        onPricingVariantChange={(variant) => {
+          setPricingVariant(variant);
+          localStorage.setItem('ss_pricing_variant', variant);
+          (window as any).SS_PRICING_VARIANT = variant;
+        }}
       />
 
       <VictoryModal
         isOpen={showVictoryModal}
         onClose={() => setShowVictoryModal(false)}
-        onUpgrade={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'monitor')}
+        onUpgrade={() => handleCheckout(mainPriceId, 'monitor')}
         onEnableAnalytics={() => {
           setShowVictoryModal(false);
           setActiveTab('fix'); // Send them to fix mode to get tags/image
@@ -480,6 +508,7 @@ export default function HomeContent() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }, 100);
         }}
+        pricingVariant={pricingVariant}
       />
 
       {/* Dynamic Header/Navbar */}
@@ -594,12 +623,14 @@ export default function HomeContent() {
       {
         !isPaid && (
           <div className="bg-slate-900 text-white text-center py-3 px-4 text-xs font-bold uppercase tracking-widest relative overflow-hidden group cursor-pointer"
-            onClick={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+            onClick={() => handleCheckout(mainPriceId)}
             role="button">
             <div className="absolute inset-0 bg-blue-600 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out" />
             <span className="relative z-10 flex items-center justify-center gap-2">
               <Zap size={14} className="fill-yellow-400 text-yellow-400 animate-pulse" />
-              Launch Special: Grab Lifetime Deal for $99
+              {pricingVariant === 'B'
+                ? `Experimental Offer: Grab All-Access for ${mainPriceLabel}`
+                : `Launch Special: Grab Lifetime Deal for ${mainPriceLabel}`}
               <span className="hidden sm:inline opacity-50 mx-2">|</span>
               <span className="hidden sm:inline text-slate-300 group-hover:text-white transition-colors">Prices increase in 48h</span>
             </span>
@@ -798,7 +829,7 @@ export default function HomeContent() {
                             </>
                           ) : (
                             <>
-                              <Zap size={16} fill="white" /> Fix Issues ($99)
+                              <Zap size={16} fill="white" /> Fix Issues ({mainPriceLabel})
                             </>
                           )}
                         </button>
@@ -811,7 +842,8 @@ export default function HomeContent() {
                         score={result.score || 0}
                         issues={result.issues || []}
                         stats={result.stats}
-                        onCheckout={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'fix')}
+                        onCheckout={() => handleCheckout(mainPriceId, 'fix')}
+                        pricingVariant={pricingVariant}
                       />
                     </div>
 
@@ -826,7 +858,7 @@ export default function HomeContent() {
                       <SocialPreviews
                         metadata={result.metadata || {}}
                         isPaid={isPaid}
-                        onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'audit')}
+                        onUnlock={() => handleCheckout(mainPriceId, 'audit')}
                       />
                     </div>
 
@@ -836,7 +868,7 @@ export default function HomeContent() {
                         <LockedFeature
                           isLocked={!isPaid}
                           label="Unlock AI Suggestions"
-                          onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'audit')}
+                          onUnlock={() => handleCheckout(mainPriceId, 'audit')}
                           className="h-full rounded-2xl"
                         >
                           <AISuggestions
@@ -851,7 +883,8 @@ export default function HomeContent() {
                           score={result.score || 0}
                           issues={result.issues || []}
                           stats={result.stats}
-                          onCheckout={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'fix')}
+                          onCheckout={() => handleCheckout(mainPriceId, 'fix')}
+                          pricingVariant={pricingVariant}
                         />
                       </div>
                     </div>
@@ -860,7 +893,7 @@ export default function HomeContent() {
                   <LockedFeature
                     isLocked={permissions ? !permissions.canBenchmark : true}
                     label="Upgrade to Benchmark"
-                    onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'compare')}
+                    onUnlock={() => handleCheckout(mainPriceId, 'compare')}
                     className="rounded-[2rem]"
                     lockBody
                     pageCenter
@@ -871,7 +904,7 @@ export default function HomeContent() {
                   <LockedFeature
                     isLocked={permissions ? !permissions.canMonitor : true}
                     label="Unlock Daily Monitoring"
-                    onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'monitor')}
+                    onUnlock={() => handleCheckout(mainPriceId, 'monitor')}
                     className="rounded-[2rem]"
                     lockBody
                     pageCenter
@@ -882,7 +915,7 @@ export default function HomeContent() {
                   <LockedFeature
                     isLocked={permissions ? !permissions.canAnalyze : true}
                     label="Unlock Analytics (Growth Plan)"
-                    onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_GROWTH || process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'analytics')}
+                    onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_GROWTH || mainPriceId, 'analytics')}
                     className="rounded-[2rem]"
                     lockBody
                     pageCenter
@@ -896,7 +929,7 @@ export default function HomeContent() {
                       <LockedFeature
                         isLocked={permissions ? !permissions.canFix : true}
                         label="Unlock Remediation Studio"
-                        onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'fix')}
+                        onUnlock={() => handleCheckout(mainPriceId, 'fix')}
                         className="rounded-[2rem]"
                         lockBody
                         pageCenter
@@ -964,7 +997,7 @@ export default function HomeContent() {
                               defaultUrl={result.metadata?.url || ''}
                               siteId={result.siteId || 'pp_demo'}
                               tier={effectiveTier as any}
-                              onUpgrade={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'monitor')}
+                              onUpgrade={() => handleCheckout(mainPriceId, 'monitor')}
                               onScansStart={() => { }}
                             />
                           </div>
@@ -1083,19 +1116,46 @@ export default function HomeContent() {
                 <div className="text-center space-y-6 max-w-3xl mx-auto">
                   <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-[13px] font-bold uppercase tracking-wider">
                     <Activity size={14} className="fill-blue-700" />
-                    Tiered Growth Model
+                    {pricingVariant === 'B' ? 'Limited Time Launch Offer' : 'Tiered Growth Model'}
                   </div>
                   <h2 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tight">
-                    Stop losing clicks. <br />Start dominating feeds.
+                    {pricingVariant === 'B'
+                      ? "Get Lifetime Access to SocialSight™"
+                      : "Stop losing clicks. Start dominating feeds."}
                   </h2>
                   <p className="text-xl text-slate-500 font-medium leading-relaxed">
-                    Join 5,000+ founders using Social Sight to turn social previews into revenue.
+                    {pricingVariant === 'B'
+                      ? "Join 5,000+ founders using Social Sight for a one-time fee. No subscriptions, just results."
+                      : "Join 5,000+ founders using Social Sight to turn social previews into revenue."}
                   </p>
                 </div>
 
-                {/* Monthly Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
-                  {[
+                <div className={cn(
+                  "grid gap-6 items-start",
+                  pricingVariant === 'B' ? "grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-4"
+                )}>
+                  {(pricingVariant === 'B' ? [
+                    {
+                      name: "Free",
+                      price: "$0",
+                      desc: "For quick checks.",
+                      features: ["3 manual scans/day", "Basic OpenGraph Checks", "Preview Simulation"],
+                      cta: "Start Free",
+                      variant: "outline",
+                      priceId: null
+                    },
+                    {
+                      name: "All-Access",
+                      price: "$9",
+                      period: "one-time",
+                      desc: "Lifetime access to everything.",
+                      features: ["The Guardian: Daily Monitoring", "Unlimited Benchmarking", "10,000 tracked impressions", "AI Headline A/B Testing", "Priority Support", "No Monthly Fees"],
+                      cta: "Get Lifetime Access",
+                      popular: true,
+                      variant: "blue",
+                      priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ALL_ACCESS
+                    }
+                  ] : [
                     {
                       name: "Free",
                       price: "$0",
@@ -1136,7 +1196,7 @@ export default function HomeContent() {
                       variant: "white",
                       priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_AGENCY
                     }
-                  ].map((tier, i) => (
+                  ]).map((tier, i) => (
                     <div key={i} className={cn(
                       "p-8 rounded-[2rem] border transition-all duration-300 relative",
                       tier.variant === 'blue'
@@ -1185,35 +1245,37 @@ export default function HomeContent() {
                 </div>
 
                 {/* Lifetime Deal Banner */}
-                <div className="max-w-4xl mx-auto bg-gradient-to-r from-blue-600 to-blue-800 rounded-[2.5rem] p-10 md:p-14 text-white relative overflow-hidden shadow-2xl shadow-blue-900/20 group cursor-pointer hover:scale-[1.01] transition-transform">
-                  <div className="absolute top-0 right-0 p-32 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 transition-transform group-hover:scale-110" />
+                {pricingVariant !== 'B' && (
+                  <div className="max-w-4xl mx-auto bg-gradient-to-r from-blue-600 to-blue-800 rounded-[2.5rem] p-10 md:p-14 text-white relative overflow-hidden shadow-2xl shadow-blue-900/20 group cursor-pointer hover:scale-[1.01] transition-transform">
+                    <div className="absolute top-0 right-0 p-32 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 transition-transform group-hover:scale-110" />
 
-                  <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
-                    <div className="space-y-6 text-center md:text-left">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full text-[11px] font-black uppercase tracking-widest border border-white/20">
-                        <Zap size={12} className="fill-white" /> Early Bird Lifetime Deal
-                      </div>
-                      <h3 className="text-4xl md:text-5xl font-black tracking-tight leading-none text-white">
-                        Get Lifetime Access. <br />Pay once, keep it forever.
-                      </h3>
-                      <p className="text-blue-100 font-medium text-lg max-w-lg">
-                        Secure the "Growth" tier features for a one-time payment. Includes Analytics, Monitoring, and A/B Testing.
-                      </p>
-                      <div className="flex flex-col md:flex-row items-center gap-4 pt-2">
-                        <div className="text-5xl font-black text-white flex items-center gap-3">
-                          <span className="text-3xl text-blue-200 line-through opacity-60">$299</span>
-                          $99
+                    <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
+                      <div className="space-y-6 text-center md:text-left">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full text-[11px] font-black uppercase tracking-widest border border-white/20">
+                          <Zap size={12} className="fill-white" /> Early Bird Lifetime Deal
                         </div>
-                        <div className="px-3 py-1 bg-red-500 text-white text-xs font-bold uppercase rounded-lg shadow-sm animate-pulse">Only 14/50 spots left</div>
+                        <h3 className="text-4xl md:text-5xl font-black tracking-tight leading-none text-white">
+                          Get Lifetime Access. <br />Pay once, keep it forever.
+                        </h3>
+                        <p className="text-blue-100 font-medium text-lg max-w-lg">
+                          Secure the "Growth" tier features for a one-time payment. Includes Analytics, Monitoring, and A/B Testing.
+                        </p>
+                        <div className="flex flex-col md:flex-row items-center gap-4 pt-2">
+                          <div className="text-5xl font-black text-white flex items-center gap-3">
+                            <span className="text-3xl text-blue-200 line-through opacity-60">$299</span>
+                            $99
+                          </div>
+                          <div className="px-3 py-1 bg-red-500 text-white text-xs font-bold uppercase rounded-lg shadow-sm animate-pulse">Only 14/50 spots left</div>
+                        </div>
                       </div>
+                      <button
+                        onClick={() => handleCheckout(mainPriceId)}
+                        className="px-10 py-5 bg-white text-blue-700 rounded-2xl font-black text-lg shadow-xl hover:bg-blue-50 transition-colors shrink-0 active:scale-95 cursor-pointer">
+                        Grab Lifetime Deal
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
-                      className="px-10 py-5 bg-white text-blue-700 rounded-2xl font-black text-lg shadow-xl hover:bg-blue-50 transition-colors shrink-0 active:scale-95 cursor-pointer">
-                      Grab Lifetime Deal
-                    </button>
                   </div>
-                </div>
+                )}
 
               </div>
             </section>

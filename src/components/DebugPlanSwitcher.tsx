@@ -10,9 +10,18 @@ interface DebugPlanSwitcherProps {
     onTierChange: (tier: UserTier | 'signed-out') => void;
     currentVariant: 'A' | 'B' | null;
     onVariantChange: (variant: 'A' | 'B') => void;
+    currentPricingVariant: 'A' | 'B' | null;
+    onPricingVariantChange: (variant: 'A' | 'B') => void;
 }
 
-export default function DebugPlanSwitcher({ currentTier, onTierChange, currentVariant, onVariantChange }: DebugPlanSwitcherProps) {
+export default function DebugPlanSwitcher({
+    currentTier,
+    onTierChange,
+    currentVariant,
+    onVariantChange,
+    currentPricingVariant,
+    onPricingVariantChange
+}: DebugPlanSwitcherProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [isVisible, setIsVisible] = useState(false);
 
@@ -91,6 +100,26 @@ export default function DebugPlanSwitcher({ currentTier, onTierChange, currentVa
                                             "px-3 py-2 text-xs font-bold rounded-lg transition-colors border",
                                             currentVariant === v
                                                 ? "bg-purple-600 text-white border-purple-500"
+                                                : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-white"
+                                        )}
+                                    >
+                                        Variant {v}
+                                    </button>
+                                ))}
+                            </div>
+                        </section>
+
+                        <section className="pt-3 border-t border-slate-800">
+                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Pricing Variant</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                                {['A', 'B'].map((v) => (
+                                    <button
+                                        key={v}
+                                        onClick={() => onPricingVariantChange(v as 'A' | 'B')}
+                                        className={cn(
+                                            "px-3 py-2 text-xs font-bold rounded-lg transition-colors border",
+                                            currentPricingVariant === v
+                                                ? "bg-emerald-600 text-white border-emerald-500"
                                                 : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-white"
                                         )}
                                     >

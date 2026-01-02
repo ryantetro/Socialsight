@@ -26,7 +26,7 @@ export async function POST(req: Request) {
         const cancelUrl = view ? `${origin}/?canceled=true&view=${view}` : `${origin}/?canceled=true`;
 
         const session = await stripe.checkout.sessions.create({
-            mode: priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD ? 'payment' : 'subscription',
+            mode: (priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD || priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_ALL_ACCESS) ? 'payment' : 'subscription',
             payment_method_types: ['card'],
             client_reference_id: user.id,
             customer_email: user.email,

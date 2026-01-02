@@ -12,6 +12,7 @@ interface Profile {
     email: string | null;
     full_name: string | null;
     tier: UserTier;
+    stripe_subscription_id?: string | null;
 }
 
 export function useProfile() {

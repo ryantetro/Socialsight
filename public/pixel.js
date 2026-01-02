@@ -24,8 +24,8 @@
             path: window.location.pathname,
             referrer: document.referrer || null,
             params: {
-                ...params,
-                ab_variant: window.SS_VARIANT || 'none'
+                ab_variant: window.SS_VARIANT || 'none',
+                pricing_variant: window.SS_PRICING_VARIANT || 'none'
             }
         };
 
@@ -100,7 +100,8 @@
                 text: trackLabel ? `${trackLabel} (${trackText})` : trackText,
                 is_outbound: isOutbound,
                 is_tracked_element: !!trackedElement,
-                ab_variant: window.SS_VARIANT || 'none'
+                ab_variant: window.SS_VARIANT || 'none',
+                pricing_variant: window.SS_PRICING_VARIANT || 'none'
             }
         };
 

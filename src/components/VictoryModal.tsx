@@ -8,9 +8,10 @@ interface VictoryModalProps {
     onClose: () => void;
     onUpgrade: () => void; // Path A: Guardian
     onEnableAnalytics: () => void; // Path B: Analytics
+    pricingVariant?: 'A' | 'B' | null;
 }
 
-export default function VictoryModal({ isOpen, onClose, onUpgrade, onEnableAnalytics }: VictoryModalProps) {
+export default function VictoryModal({ isOpen, onClose, onUpgrade, onEnableAnalytics, pricingVariant }: VictoryModalProps) {
     useEffect(() => {
         if (isOpen) {
             // Fire confetti!
@@ -98,7 +99,7 @@ export default function VictoryModal({ isOpen, onClose, onUpgrade, onEnableAnaly
                                 "I want to prevent regressions and stay perfect forever."
                             </p>
                             <button className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/30 transition-all">
-                                Start 7-Day Free Trial
+                                {pricingVariant === 'B' ? 'Unlock All-Access ($9)' : 'Start 7-Day Free Trial'}
                             </button>
                             <div className="mt-3 flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 <Zap size={10} className="fill-slate-300" />

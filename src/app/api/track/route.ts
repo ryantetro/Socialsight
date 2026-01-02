@@ -56,6 +56,7 @@ export async function POST(request: Request) {
 
         // Feature 4: A/B Variant
         const abVariant = params?.ab_variant || body.ab_variant || null;
+        const pricingVariant = params?.pricing_variant || body.pricing_variant || null;
 
         // Insert into Supabase
         const { error } = await supabase
@@ -69,7 +70,8 @@ export async function POST(request: Request) {
                 country,
                 is_bot: isBot,
                 source,
-                ab_variant: abVariant
+                ab_variant: abVariant,
+                pricing_variant: pricingVariant
             });
 
         if (error) {
