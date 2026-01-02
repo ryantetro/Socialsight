@@ -9,12 +9,30 @@
         return;
     }
 
+    const getVariant = (key) => {
+        if (typeof localStorage === 'undefined') return 'none';
+        let v = localStorage.getItem(key);
+        if (!v) {
+            v = Math.random() > 0.5 ? 'B' : 'A';
+            localStorage.setItem(key, v);
+        }
+        return v;
+    };
+
     const trackPageView = () => {
         // Live Stealth Mode Check
         if (typeof localStorage !== 'undefined' && localStorage.getItem('ss_stealth_mode') === 'true') {
             console.log('SocialSight Pixel: Stealth Mode Active - Page View Tracking Blocked.');
             return;
         }
+
+        const currentAb = getVariant('ss_ab_variant');
+        const currentPricing = getVariant('ss_pricing_variant');
+
+        // Sync to window for React app if it loads later
+        window.SS_VARIANT = currentAb;
+        window.SS_PRICING_VARIANT = currentPricing;
+
         // Parse Query Params (UTM, Ref)
         const params = {};
         const searchParams = new URLSearchParams(window.location.search);
@@ -29,8 +47,8 @@
             referrer: document.referrer || null,
             params: {
                 ...params,
-                ab_variant: window.SS_VARIANT || 'none',
-                pricing_variant: window.SS_PRICING_VARIANT || 'none'
+                ab_variant: currentAb,
+                pricing_variant: currentPricing
             }
         };
 
