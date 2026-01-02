@@ -25,6 +25,12 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400, headers });
         }
 
+        // Feature 0: Exclude Localhost
+        if (referrer && (referrer.includes('localhost') || referrer.includes('127.0.0.1'))) {
+            // we return 200 so the client doesn't complain, but we don't record it
+            return NextResponse.json({ success: true, ignored: true }, { status: 200, headers });
+        }
+
         // Feature 1: Bot Filtering
         const userAgent = request.headers.get('user-agent') || '';
         const botPattern = /bot|crawler|spider|crawling/i;
