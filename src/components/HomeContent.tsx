@@ -14,7 +14,7 @@ import CompetitorBoard from '@/components/CompetitorBoard';
 import Dashboard from '@/components/Dashboard';
 import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 import ScanHistory from '@/components/ScanHistory';
-import { Share2, Zap, Shield, BarChart3, ArrowLeft, LayoutDashboard, Code, Image as ImageIcon, Scale, Activity, PieChart, CheckCircle2, Lock, Clock } from 'lucide-react';
+import { Share2, Zap, Shield, BarChart3, ArrowLeft, LayoutDashboard, Code, Image as ImageIcon, Scale, Activity, PieChart, CheckCircle2, Lock, Clock, X } from 'lucide-react';
 import { InspectionResult } from '@/types';
 import { cn } from '@/lib/utils';
 import PlanPill from '@/components/PlanPill';
@@ -34,9 +34,15 @@ export default function HomeContent() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [showVictoryModal, setShowVictoryModal] = useState(false);
+  const [abVariant, setAbVariant] = useState<'A' | 'B' | null>(null);
+  const [globalStats, setGlobalStats] = useState<{ totalScans: number, activity: any[] }>({ totalScans: 13530, activity: [] });
+  const [currentNotificationIndex, setCurrentNotificationIndex] = useState(0);
+  const [isNotificationVisible, setIsNotificationVisible] = useState(false);
+  const [shouldRenderNotification, setShouldRenderNotification] = useState(false);
 
   // Initialize from localStorage immediately if possible, but safely for SSR.
   const [activeTab, setActiveTabState] = useState<'audit' | 'fix' | 'compare' | 'monitor' | 'analytics' | 'history'>('audit');
+  const [selectedUrl, setSelectedUrl] = useState('');
 
   // Persistence: Read on mount
   useEffect(() => {
@@ -146,6 +152,83 @@ export default function HomeContent() {
 
     loadScan();
   }, [scanId]);
+
+  // A/B Variant Assignment
+  useEffect(() => {
+    let variant = localStorage.getItem('ss_ab_variant') as 'A' | 'B' | null;
+    if (!variant) {
+      variant = Math.random() > 0.5 ? 'B' : 'A';
+      localStorage.setItem('ss_ab_variant', variant);
+    }
+    setAbVariant(variant);
+    // Expose to pixel.js
+    (window as any).SS_VARIANT = variant;
+  }, []);
+
+  // Load Social Proof Stats
+  useEffect(() => {
+    const fetchGlobalStats = async () => {
+      try {
+        const res = await fetch('/api/stats/summary');
+        const data = await res.json();
+        if (data.totalScans) {
+          setGlobalStats(data);
+        }
+      } catch (e) {
+        console.error('Failed to fetch global stats', e);
+      }
+    };
+    fetchGlobalStats();
+    // Refresh activity every 30s
+    const interval = setInterval(fetchGlobalStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Cycle Live Notifications
+  useEffect(() => {
+    if (globalStats.activity.length === 0) return;
+
+    const cycle = () => {
+      setIsNotificationVisible(false);
+      setTimeout(() => {
+        // ONLY show if we are on the landing page state
+        if (!result && activeTab === 'audit') {
+          setCurrentNotificationIndex(prev => (prev + 1) % globalStats.activity.length);
+          setIsNotificationVisible(true);
+        }
+      }, 500);
+    };
+
+    // Initial show
+    const timer = setTimeout(() => {
+      if (!result && activeTab === 'audit') {
+        setIsNotificationVisible(true);
+      }
+    }, 3000);
+
+    const interval = setInterval(cycle, 12000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timer);
+    }
+  }, [globalStats.activity, result, activeTab]);
+
+  // Kill notification if user leaves landing page
+  useEffect(() => {
+    if (result || activeTab !== 'audit') {
+      setIsNotificationVisible(false);
+    }
+  }, [result, activeTab]);
+
+  // Handle Notification Rendering Lifecycle (for animations)
+  useEffect(() => {
+    if (isNotificationVisible) {
+      setShouldRenderNotification(true);
+    } else {
+      const timer = setTimeout(() => setShouldRenderNotification(false), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [isNotificationVisible]);
 
   // Restore last scan from localStorage if none present
   useEffect(() => {
@@ -374,9 +457,15 @@ export default function HomeContent() {
               // Refresh profile to confirm
               if (refresh) refresh();
             } catch (e) {
-              console.error('Failed to persist tier', e);
+              console.error('Debug: Failed to persist tier', e);
             }
           }
+        }}
+        currentVariant={abVariant}
+        onVariantChange={(variant) => {
+          setAbVariant(variant);
+          localStorage.setItem('ss_ab_variant', variant);
+          (window as any).SS_VARIANT = variant;
         }}
       />
 
@@ -521,21 +610,134 @@ export default function HomeContent() {
       {/* Hero Section */}
       <section className={cn(
         "transition-all duration-1000 ease-in-out overflow-hidden relative",
-        result || activeTab !== 'audit' ? "max-h-0 opacity-0 py-0" : "max-h-[1000px] pt-12 md:pt-16 pb-20 md:pb-32 px-6 opacity-100"
+        result || activeTab !== 'audit' ? "max-h-0 opacity-0 py-0" : "max-h-[1200px] pt-12 md:pt-16 pb-20 md:pb-32 px-6 opacity-100"
       )}>
-        <div className="max-w-4xl mx-auto text-center space-y-10 relative">
+        {abVariant === 'B' ? (
+          /* GROWTH HERO (Variant B) - 2 Column */
+          <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
 
-          <h1 className="text-6xl md:text-7xl font-black tracking-tight text-slate-900 leading-[0.9]">
-            Your social previews are <span className="text-blue-600 italic">leaking</span> money.
-          </h1>
-          <p className="text-xl md:text-2xl text-slate-500 max-w-2xl mx-auto font-medium leading-relaxed">
-            Turn every link share into a traffic magnet. Automatically design perfect OpenGraph images and use AI to double your social click-through rate.
-          </p>
+            {/* Column 1: Copy & Form */}
+            <div className="space-y-10 relative">
+              <div className="space-y-6">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[11px] font-black uppercase tracking-widest border border-blue-100 animate-fade-in">
+                  <Zap size={12} className="fill-blue-600" />
+                  {globalStats.totalScans.toLocaleString()}+ links audited this week
+                </div>
 
-          <div className="pt-8">
-            <ScraperForm onResult={handleResult} limitReached={isLimitReached} />
+                <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter text-slate-900 leading-[0.95]">
+                  Stop losing <span className="text-blue-600 italic">60%</span> of your social clicks.
+                </h1>
+                <p className="text-lg md:text-2xl text-slate-500 max-w-xl font-medium leading-relaxed">
+                  Most links look broken when shared. We fix your OpenGraph tags and use AI to double your catch-rate instantly.
+                </p>
+              </div>
+
+              <div className="space-y-6">
+                <ScraperForm
+                  onResult={handleResult}
+                  limitReached={isLimitReached}
+                  prefillUrl={selectedUrl}
+                />
+
+                <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-1000 delay-300">
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-400">Quick Test:</p>
+                  <div className="flex flex-wrap gap-3">
+                    {[
+                      { name: 'Stripe', url: 'https://stripe.com', logo: '/stripe.png' },
+                      { name: 'Vercel', url: 'https://vercel.com', logo: '/vercel.png' },
+                      { name: 'Airbnb', url: 'https://airbnb.com', logo: '/airbnb.png' }
+                    ].map((sample) => (
+                      <button
+                        key={sample.name}
+                        onClick={() => setSelectedUrl(sample.url)}
+                        data-track="sample-audit-btn"
+                        data-track-dest={sample.url}
+                        className="p-1 px-4 bg-white border border-slate-200 rounded-xl hover:border-blue-400 hover:shadow-md transition-all active:scale-95 flex items-center gap-2 group/btn"
+                      >
+                        <img src={sample.logo} alt={sample.name} className="w-4 h-4 object-contain filter grayscale group-hover/btn:grayscale-0 transition-all" />
+                        <span className="text-sm font-bold text-slate-600 group-hover/btn:text-blue-600 transition-colors uppercase tracking-tight">{sample.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Live activity ticker for mobile */}
+              <div className="lg:hidden animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-500 mt-6">
+                <div className="inline-flex items-center gap-3 px-4 py-2 bg-slate-900 text-white rounded-2xl shadow-xl shadow-slate-200/50 border border-white/10 ring-4 ring-slate-50">
+                  <div className="flex -space-x-1.5">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="w-5 h-5 rounded-full bg-slate-800 border-2 border-slate-900 overflow-hidden">
+                        <img src={`https://i.pravatar.cc/100?u=user${i}`} className="w-full h-full object-cover" alt="" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-80">
+                      Live: Audit on t***.com
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Column 2: Before/After Visual */}
+            <div className="relative group">
+              {/* Before/After Card */}
+              <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-2xl p-4 overflow-hidden relative animate-fade-in-up">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-blue-500 to-green-500 opacity-50" />
+
+                {/* Content area */}
+                <div className="grid grid-rows-2 gap-4 h-[380px] md:h-[500px]">
+                  {/* Top: The "Pain" (Before) */}
+                  <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 relative overflow-hidden group/before">
+                    <div className="absolute top-4 left-4 px-2 py-0.5 bg-red-100 text-red-600 text-[10px] font-black uppercase tracking-widest rounded-md">Expected</div>
+                    <div className="mt-8 space-y-3">
+                      <div className="h-4 w-2/3 bg-slate-200 rounded animate-pulse" />
+                      <div className="h-32 w-full bg-slate-200 rounded-xl border border-slate-200 overflow-hidden relative">
+                        <img src="/badsim.png" className="w-full h-full object-cover grayscale opacity-60" alt="" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-100/50 to-transparent" />
+                      </div>
+                    </div>
+                    <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] opacity-0 group-hover/before:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="text-red-600 font-bold bg-white px-4 py-2 rounded-full shadow-xl">Missing Data! (−60% CTR)</span>
+                    </div>
+                  </div>
+
+                  {/* Bottom: The "Gain" (After) */}
+                  <div className="bg-blue-600 rounded-2xl p-6 border border-blue-500 relative overflow-hidden group/after shadow-2xl shadow-blue-500/20">
+                    <div className="absolute top-4 left-4 px-2 py-0.5 bg-white/20 text-white text-[10px] font-black uppercase tracking-widest rounded-md">SocialSight™</div>
+                    <div className="mt-8 space-y-3">
+                      <div className="h-4 w-2/3 bg-white/40 rounded" />
+                      <div className="h-32 w-full bg-white/10 rounded-xl border border-white/20 overflow-hidden relative">
+                        <img src="/goodsim.png" className="w-full h-full object-cover" alt="" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-blue-900/20 to-transparent" />
+                      </div>
+                    </div>
+                    <div className="absolute inset-0 bg-blue-600/40 backdrop-blur-[1px] opacity-0 group-hover/after:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="text-blue-600 font-black bg-white px-4 py-2 rounded-full shadow-xl">Perfect Preview (+2.4x CTR)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* CLASSIC HERO (Variant A) - Centered */
+          <div className="max-w-4xl mx-auto text-center space-y-10 relative">
+            <h1 className="text-6xl md:text-7xl font-black tracking-tight text-slate-900 leading-[0.9]">
+              Your social previews are <span className="text-blue-600 italic">leaking</span> money.
+            </h1>
+            <p className="text-xl md:text-2xl text-slate-500 max-w-2xl mx-auto font-medium leading-relaxed">
+              Turn every link share into a traffic magnet. Automatically design perfect OpenGraph images and use AI to double your social click-through rate.
+            </p>
+
+            <div className="pt-8">
+              <ScraperForm onResult={handleResult} limitReached={isLimitReached} />
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Results Mode Dashboard */}
@@ -897,7 +1099,7 @@ export default function HomeContent() {
                     {
                       name: "Free",
                       price: "$0",
-                      desc: "For dabbles & testers.",
+                      desc: "For quick checks.",
                       features: ["3 manual scans/day", "Basic OpenGraph Checks", "Preview Simulation"],
                       cta: "Start Free",
                       variant: "outline",
@@ -1051,6 +1253,67 @@ export default function HomeContent() {
               </button>
             ))}
           </div>
+        </div>
+      )}
+      {/* Live Notification Popup */}
+      {shouldRenderNotification && globalStats.activity[currentNotificationIndex] && (
+        <div
+          className={cn(
+            "fixed bottom-8 right-8 z-[60] hidden md:block transition-all duration-700",
+            isNotificationVisible
+              ? "animate-[notification-in_0.7s_cubic-bezier(0.34,1.56,0.64,1)_forwards]"
+              : "animate-[notification-out_0.5s_ease-in_forwards]"
+          )}
+        >
+          <div className="bg-slate-900/90 backdrop-blur-2xl px-5 py-4 pr-12 rounded-[1.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.4)] flex items-center gap-4 relative group">
+            {/* Glow Effect */}
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/20 to-purple-500/0 rounded-[1.5rem] blur opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+            <div className="relative z-10 w-12 h-12 rounded-2xl bg-slate-800 border border-white/5 flex items-center justify-center shrink-0 shadow-inner">
+              <Activity size={22} className="text-blue-400 animate-pulse" />
+            </div>
+
+            <div className="relative z-10 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400/80">Live Audit</p>
+              </div>
+              <p className="text-white text-[15px] font-bold truncate max-w-[200px] tracking-tight">
+                Someone audited <span className="text-blue-400 font-black">{globalStats.activity[currentNotificationIndex].domain}</span>
+              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <div className="px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-md text-[9px] font-black text-blue-400 uppercase">
+                  Score: {82 + (currentNotificationIndex * 3) % 18}
+                </div>
+                <p className="text-[10px] font-medium text-slate-500 tracking-wide">just now</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsNotificationVisible(false)}
+              className="absolute top-4 right-4 text-slate-600 hover:text-white transition-colors z-20"
+            >
+              <X size={16} />
+            </button>
+
+            {/* Progress Bar Background */}
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/5 rounded-b-[1.5rem] overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-blue-600 via-blue-400 to-blue-600"
+                style={{
+                  width: '100%',
+                  animation: 'progress 12s linear infinite'
+                }}
+              />
+            </div>
+          </div>
+
+          <style jsx>{`
+            @keyframes progress {
+              from { transform: translateX(-100%); }
+              to { transform: translateX(0); }
+            }
+          `}</style>
         </div>
       )}
 

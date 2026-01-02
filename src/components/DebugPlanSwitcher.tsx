@@ -8,15 +8,17 @@ import { Settings, X } from 'lucide-react';
 interface DebugPlanSwitcherProps {
     currentTier: UserTier | 'signed-out';
     onTierChange: (tier: UserTier | 'signed-out') => void;
+    currentVariant: 'A' | 'B' | null;
+    onVariantChange: (variant: 'A' | 'B') => void;
 }
 
-export default function DebugPlanSwitcher({ currentTier, onTierChange }: DebugPlanSwitcherProps) {
+export default function DebugPlanSwitcher({ currentTier, onTierChange, currentVariant, onVariantChange }: DebugPlanSwitcherProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [isVisible, setIsVisible] = useState(false);
 
     useEffect(() => {
         // Only show in development or if a special query param is present
-        if (process.env.NODE_ENV === 'development' || typeof window !== 'undefined' && window.location.search.includes('debug=true')) {
+        if (process.env.NODE_ENV === 'development' || (typeof window !== 'undefined' && window.location.search.includes('debug=true'))) {
             setIsVisible(true);
         }
     }, []);
@@ -31,7 +33,7 @@ export default function DebugPlanSwitcher({ currentTier, onTierChange }: DebugPl
                 <button
                     onClick={() => setIsOpen(true)}
                     className="bg-slate-900 text-white p-3 rounded-full shadow-xl hover:scale-110 transition-transform border border-slate-700"
-                    title="Debug: Switch Plan"
+                    title="Debug Settings"
                 >
                     <Settings size={20} />
                 </button>
@@ -40,42 +42,67 @@ export default function DebugPlanSwitcher({ currentTier, onTierChange }: DebugPl
             {isOpen && (
                 <div className="bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-2xl w-64 animate-in slide-in-from-bottom-2 fade-in">
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-white font-bold text-xs uppercase tracking-wider">Debug: Force Tier</h3>
+                        <h3 className="text-white font-bold text-xs uppercase tracking-wider">Debug Settings</h3>
                         <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-white">
                             <X size={16} />
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                        {tiers.map((tier) => (
-                            <button
-                                key={tier}
-                                onClick={() => onTierChange(tier)}
-                                className={cn(
-                                    "px-3 py-2 text-xs font-bold rounded-lg transition-colors border",
-                                    currentTier === tier
-                                        ? "bg-blue-600 text-white border-blue-500"
-                                        : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-white"
-                                )}
-                            >
-                                {tier.charAt(0).toUpperCase() + tier.slice(1)}
-                            </button>
-                        ))}
-                        <button
-                            onClick={() => onTierChange('signed-out')}
-                            className={cn(
-                                "px-3 py-2 text-xs font-bold rounded-lg transition-colors border col-span-2",
-                                currentTier === 'signed-out'
-                                    ? "bg-red-600 text-white border-red-500"
-                                    : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-white"
-                            )}
-                        >
-                            Force Signed Out
-                        </button>
+                    <div className="space-y-4">
+                        <section>
+                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Force Tier</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                                {tiers.map((tier) => (
+                                    <button
+                                        key={tier}
+                                        onClick={() => onTierChange(tier)}
+                                        className={cn(
+                                            "px-3 py-2 text-xs font-bold rounded-lg transition-colors border",
+                                            currentTier === tier
+                                                ? "bg-blue-600 text-white border-blue-500"
+                                                : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-white"
+                                        )}
+                                    >
+                                        {tier.charAt(0).toUpperCase() + tier.slice(1)}
+                                    </button>
+                                ))}
+                                <button
+                                    onClick={() => onTierChange('signed-out')}
+                                    className={cn(
+                                        "px-3 py-2 text-xs font-bold rounded-lg transition-colors border col-span-2",
+                                        currentTier === 'signed-out'
+                                            ? "bg-red-600 text-white border-red-500"
+                                            : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-white"
+                                    )}
+                                >
+                                    Force Signed Out
+                                </button>
+                            </div>
+                        </section>
+
+                        <section className="pt-3 border-t border-slate-800">
+                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Home Variant</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                                {['A', 'B'].map((v) => (
+                                    <button
+                                        key={v}
+                                        onClick={() => onVariantChange(v as 'A' | 'B')}
+                                        className={cn(
+                                            "px-3 py-2 text-xs font-bold rounded-lg transition-colors border",
+                                            currentVariant === v
+                                                ? "bg-purple-600 text-white border-purple-500"
+                                                : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-white"
+                                        )}
+                                    >
+                                        Variant {v}
+                                    </button>
+                                ))}
+                            </div>
+                        </section>
                     </div>
 
-                    <div className="mt-3 pt-3 border-t border-slate-800 text-[10px] text-slate-500 text-center">
-                        This widget is only visible in DEV mode.
+                    <div className="mt-3 pt-3 border-t border-slate-800 text-[10px] text-slate-500 text-center italic">
+                        Visible in DEV or ?debug=true
                     </div>
                 </div>
             )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Loader2, AlertCircle } from 'lucide-react';
 import { InspectionResult } from '@/types';
 import { cn } from '@/lib/utils';
@@ -11,12 +11,29 @@ interface ScraperFormProps {
     variant?: 'hero' | 'compact';
     limitReached?: boolean;
     align?: 'left' | 'right';
+    prefillUrl?: string; // New prop for sample audits
 }
 
-export default function ScraperForm({ onResult, variant = 'hero', limitReached = false, align = 'right' }: ScraperFormProps) {
+export default function ScraperForm({ onResult, variant = 'hero', limitReached = false, align = 'right', prefillUrl = '' }: ScraperFormProps) {
     const [url, setUrl] = useState('');
     const [isOpen, setIsOpen] = useState(false);
     const { loading, error, scrape } = useScrape();
+
+    // Handle prefill and auto-trigger
+    useEffect(() => {
+        if (prefillUrl) {
+            setUrl(prefillUrl);
+            const performScrape = async () => {
+                const data = await scrape(prefillUrl);
+                if (data) {
+                    onResult(data);
+                    setUrl('');
+                    setIsOpen(false);
+                }
+            };
+            performScrape();
+        }
+    }, [prefillUrl]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -119,6 +136,7 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
                 <button
                     type="submit"
                     disabled={loading || limitReached}
+                    data-track="hero-audit-btn"
                     className={cn(
                         "absolute right-1.5 top-1.5 bottom-1.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:bg-blue-400 transition-all flex items-center justify-center gap-2 px-2 md:px-6 text-xs md:text-base",
                         limitReached && "bg-slate-400 hover:bg-slate-400"
@@ -148,7 +166,7 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
 
             {!error && !limitReached && (
                 <p className="mt-4 text-slate-400 text-sm text-center font-medium">
-                    Analyze any URL to reveal and fix social sharing leaks.
+                    Audit any URL to find preview issues and fix them in minutes.
                 </p>
             )}
             {limitReached && (

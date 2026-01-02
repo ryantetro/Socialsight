@@ -23,7 +23,10 @@
             event_type: 'page_view',
             path: window.location.pathname,
             referrer: document.referrer || null,
-            params: params // Send all params
+            params: {
+                ...params,
+                ab_variant: window.SS_VARIANT || 'none'
+            }
         };
 
         // Send to API
@@ -96,7 +99,8 @@
                 destination: destination,
                 text: trackLabel ? `${trackLabel} (${trackText})` : trackText,
                 is_outbound: isOutbound,
-                is_tracked_element: !!trackedElement
+                is_tracked_element: !!trackedElement,
+                ab_variant: window.SS_VARIANT || 'none'
             }
         };
 

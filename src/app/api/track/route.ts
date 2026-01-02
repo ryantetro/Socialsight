@@ -54,6 +54,9 @@ export async function POST(request: Request) {
         let normalizedEventType = event_type;
         if (event_type === 'pageview') normalizedEventType = 'page_view';
 
+        // Feature 4: A/B Variant
+        const abVariant = params?.ab_variant || body.ab_variant || null;
+
         // Insert into Supabase
         const { error } = await supabase
             .from('analytics_events')
@@ -65,7 +68,8 @@ export async function POST(request: Request) {
                 user_agent: userAgent,
                 country,
                 is_bot: isBot,
-                source
+                source,
+                ab_variant: abVariant
             });
 
         if (error) {

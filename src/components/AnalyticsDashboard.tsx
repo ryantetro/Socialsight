@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { MousePointer2, Eye, TrendingUp, ArrowUpRight, Activity, BarChart3, Zap, Copy, Check, X, MessageCircle, Smartphone, Mail, Globe, Share2, Plus, ArrowLeft, ExternalLink, Loader2, Shield, Laptop, Tablet, RefreshCw } from 'lucide-react';
+import { MousePointer2, Eye, TrendingUp, ArrowUpRight, Activity, BarChart3, Zap, Copy, Check, X, MessageCircle, Smartphone, Mail, Globe, Share2, Plus, ArrowLeft, ExternalLink, Loader2, Shield, Laptop, Tablet, RefreshCw, Scale } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@supabase/supabase-js';
 import MetaSnippet from './MetaSnippet';
@@ -35,6 +35,13 @@ interface Site {
     site_title?: string;
 }
 
+interface ABStats {
+    variant: string;
+    impressions: number;
+    audits: number;
+    conversionRate: number;
+}
+
 export default function AnalyticsDashboard() {
     // View State
     const [view, setView] = useState<'list' | 'detail' | 'setup'>('list');
@@ -54,6 +61,7 @@ export default function AnalyticsDashboard() {
     const [topPages, setTopPages] = useState<{ path: string, count: number, percent: number }[]>([]);
     const [deviceStats, setDeviceStats] = useState<{ name: string, value: number, color: string }[]>([]);
     const [countryStats, setCountryStats] = useState<{ code: string, name: string, count: number, percent: number }[]>([]);
+    const [abStats, setAbStats] = useState<ABStats[]>([]);
 
     // Colors for consistency: Twitter(black), LinkedIn(blue), FB(royal), Direct(slate), Google(red), etc.
     const SOURCE_COLORS: Record<string, string> = {
@@ -251,6 +259,7 @@ export default function AnalyticsDashboard() {
                 setTopPages(topPages || []);
                 setDeviceStats(deviceStats || []);
                 setCountryStats(countryStats || []);
+                setAbStats(abStats || []);
                 // Don't stop refreshing yet, we still want to fetch fresh data
             } catch (e) {
                 console.error('Cache parse error', e);
@@ -416,6 +425,32 @@ export default function AnalyticsDashboard() {
             }));
         setCountryStats(countryList);
 
+        // Process A/B Experiments
+        const abMap: Record<string, { impressions: number, audits: number }> = {
+            'A': { impressions: 0, audits: 0 },
+            'B': { impressions: 0, audits: 0 }
+        };
+
+        eventsData.forEach(e => {
+            const variant = e.ab_variant || (e.params?.ab_variant as string) || 'none';
+            if (variant === 'A' || variant === 'B') {
+                if (e.event_type === 'page_view' || e.event_type === 'impression') {
+                    abMap[variant].impressions++;
+                } else if (e.event_type === 'click' && ((e.params?.text as string)?.includes('audit-btn'))) {
+                    // Count clicks on the audit button as "audits"
+                    abMap[variant].audits++;
+                }
+            }
+        });
+
+        const abList: ABStats[] = Object.entries(abMap).map(([variant, data]) => ({
+            variant: `Variant ${variant}`,
+            impressions: data.impressions,
+            audits: data.audits,
+            conversionRate: data.impressions > 0 ? parseFloat(((data.audits / data.impressions) * 100).toFixed(1)) : 0
+        }));
+        setAbStats(abList);
+
         // Cache the result
         localStorage.setItem(cacheKey, JSON.stringify({
             events: recent,
@@ -425,6 +460,7 @@ export default function AnalyticsDashboard() {
             topPages: topPagesList,
             deviceStats: deviceData,
             countryStats: countryList,
+            abStats: abList,
             timestamp: Date.now()
         }));
 
@@ -1251,6 +1287,55 @@ export default function AnalyticsDashboard() {
                             )
                         )}
                     </div>
+                </div>
+            </div>
+
+            {/* Active Experiments Section */}
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm mt-8 relative overflow-hidden group">
+                <div className="flex items-center justify-between mb-8 relative z-10">
+                    <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <div className="p-2 bg-purple-50 text-purple-600 rounded-xl">
+                            <Scale size={20} />
+                        </div>
+                        Active Experiments
+                    </h3>
+                    <div className="px-3 py-1 bg-purple-50 text-purple-600 text-[10px] font-black uppercase tracking-widest rounded-full border border-purple-100">
+                        Live Test
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                    {abStats.map((stat, i) => (
+                        <div key={i} className="bg-slate-50 rounded-3xl p-6 border border-slate-100 space-y-6">
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm font-black text-slate-900 uppercase tracking-widest">{stat.variant}</span>
+                                <div className="text-2xl font-black text-purple-600">{stat.conversionRate}% <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Conv.</span></div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-white p-4 rounded-2xl border border-slate-100">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Impressions</div>
+                                    <div className="text-xl font-black text-slate-1000">{stat.impressions.toLocaleString()}</div>
+                                </div>
+                                <div className="bg-white p-4 rounded-2xl border border-slate-100">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Audits</div>
+                                    <div className="text-xl font-black text-slate-1000">{stat.audits.toLocaleString()}</div>
+                                </div>
+                            </div>
+
+                            <div className="h-2 w-full bg-white rounded-full overflow-hidden border border-slate-100">
+                                <div
+                                    className="h-full bg-purple-500 rounded-full transition-all duration-1000"
+                                    style={{ width: `${stat.conversionRate}%` }}
+                                />
+                            </div>
+                        </div>
+                    ))}
+                    {abStats.length === 0 && (
+                        <div className="col-span-2 py-12 text-center text-slate-400 italic font-medium">
+                            Waiting for experimental data...
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
