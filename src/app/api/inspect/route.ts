@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
                             : getLocalExePath(),
                         headless: isProduction ? ((chromium as any).headless as boolean) : true,
                         ignoreHTTPSErrors: true,
-                    });
+                    } as any);
 
                     const page = await browser.newPage();
                     await page.setViewport({ width: 1280, height: 800 });
