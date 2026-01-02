@@ -14,7 +14,7 @@ import CompetitorBoard from '@/components/CompetitorBoard';
 import Dashboard from '@/components/Dashboard';
 import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 import ScanHistory from '@/components/ScanHistory';
-import { Share2, Zap, Shield, BarChart3, ArrowLeft, LayoutDashboard, Code, Image as ImageIcon, Scale, Activity, PieChart, CheckCircle2, Lock, Clock, X } from 'lucide-react';
+import { Share2, Zap, Shield, BarChart3, ArrowLeft, LayoutDashboard, Code, Image as ImageIcon, Scale, Activity, PieChart, CheckCircle2, Lock, Clock, X, Twitter, Linkedin, Facebook, MessageSquare, ImageOff } from 'lucide-react';
 import { InspectionResult } from '@/types';
 import { cn } from '@/lib/utils';
 import PlanPill from '@/components/PlanPill';
@@ -723,40 +723,121 @@ export default function HomeContent() {
             </div>
 
             {/* Column 2: Before/After Visual */}
-            <div className="relative group">
+            <div className="relative group perspective-1000">
               {/* Before/After Card */}
-              <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-2xl p-4 overflow-hidden relative animate-fade-in-up">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-blue-500 to-green-500 opacity-50" />
+              <div className="bg-slate-50/50 backdrop-blur-xl rounded-[3rem] border border-slate-200/50 shadow-2xl p-6 overflow-hidden relative animate-fade-in-up transition-transform duration-700 hover:scale-[1.02]">
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-500 via-blue-500 to-emerald-500 opacity-30" />
 
                 {/* Content area */}
-                <div className="grid grid-rows-2 gap-4 h-[380px] md:h-[500px]">
+                <div className="flex flex-col gap-6 h-[460px] md:h-[580px]">
                   {/* Top: The "Pain" (Before) */}
-                  <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 relative overflow-hidden group/before">
-                    <div className="absolute top-4 left-4 px-2 py-0.5 bg-red-100 text-red-600 text-[10px] font-black uppercase tracking-widest rounded-md">Expected</div>
-                    <div className="mt-8 space-y-3">
-                      <div className="h-4 w-2/3 bg-slate-200 rounded animate-pulse" />
-                      <div className="h-32 w-full bg-slate-200 rounded-xl border border-slate-200 overflow-hidden relative">
-                        <img src="/badsim.png" className="w-full h-full object-cover grayscale opacity-60" alt="" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-100/50 to-transparent" />
+                  <div className="flex-1 bg-white rounded-3xl p-6 border border-slate-200 relative overflow-hidden group/before shadow-sm">
+                    <div className="absolute top-4 left-4 px-3 py-1 bg-red-50 text-red-600 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border border-red-100 shadow-sm z-20">Expected</div>
+
+                    <div className="mt-12 space-y-4">
+                      {/* Placeholder Title */}
+                      <div className="h-4 w-1/2 bg-slate-100 rounded animate-pulse" />
+
+                      {/* Skeleton Grid */}
+                      <div className="grid grid-cols-4 gap-3">
+                        {[1, 2, 3, 4].map((i) => (
+                          <div key={i} className="space-y-2">
+                            <div className="h-2 w-2/3 bg-slate-50 rounded" />
+                            <div className="aspect-square bg-slate-50 rounded-xl border-2 border-dashed border-slate-100 flex items-center justify-center">
+                              <ImageOff size={16} className="text-slate-200" />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="h-1.5 w-full bg-slate-50 rounded" />
+                              <div className="h-1.5 w-2/3 bg-slate-50 rounded" />
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                    <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] opacity-0 group-hover/before:opacity-100 transition-opacity flex items-center justify-center">
-                      <span className="text-red-600 font-bold bg-white px-4 py-2 rounded-full shadow-xl">Missing Data! (−60% CTR)</span>
+
+                    <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] opacity-0 group-hover/before:opacity-100 transition-all duration-500 flex items-center justify-center z-30">
+                      <div className="bg-white px-6 py-3 rounded-2xl shadow-2xl border border-red-100 flex items-center gap-3 scale-90 group-hover/before:scale-100 transition-transform">
+                        <div className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                        <span className="text-red-600 font-black text-sm tracking-tight uppercase">Missing Data! (−60% CTR)</span>
+                      </div>
                     </div>
                   </div>
 
                   {/* Bottom: The "Gain" (After) */}
-                  <div className="bg-blue-600 rounded-2xl p-6 border border-blue-500 relative overflow-hidden group/after shadow-2xl shadow-blue-500/20">
-                    <div className="absolute top-4 left-4 px-2 py-0.5 bg-white/20 text-white text-[10px] font-black uppercase tracking-widest rounded-md">SocialSight™</div>
-                    <div className="mt-8 space-y-3">
-                      <div className="h-4 w-2/3 bg-white/40 rounded" />
-                      <div className="h-32 w-full bg-white/10 rounded-xl border border-white/20 overflow-hidden relative">
-                        <img src="/goodsim.png" className="w-full h-full object-cover" alt="" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-blue-900/20 to-transparent" />
+                  <div className="flex-1 bg-blue-600 rounded-3xl p-6 border border-blue-500 relative overflow-hidden group/after shadow-2xl shadow-blue-500/30">
+                    <div className="absolute top-4 left-4 px-3 py-1 bg-white text-blue-600 text-[10px] font-black uppercase tracking-[0.2em] rounded-full shadow-lg z-20">SocialSight™</div>
+
+                    <div className="mt-12 space-y-4">
+                      {/* Real-looking Title */}
+                      <div className="h-4 w-3/4 bg-white/30 rounded" />
+
+                      {/* Mini Card Grid */}
+                      <div className="grid grid-cols-4 gap-3">
+                        {/* Twitter */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1 opacity-60">
+                            <Twitter size={8} className="text-white fill-white" />
+                            <div className="h-1 w-8 bg-white/40 rounded" />
+                          </div>
+                          <div className="aspect-square rounded-xl overflow-hidden border border-white/20 shadow-lg">
+                            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=200" className="w-full h-full object-cover" alt="" />
+                          </div>
+                          <div className="space-y-1">
+                            <div className="h-1.5 w-full bg-white/40 rounded" />
+                            <div className="h-1.2 w-2/3 bg-white/20 rounded" />
+                          </div>
+                        </div>
+                        {/* LinkedIn */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1 opacity-60">
+                            <Linkedin size={8} className="text-white fill-white" />
+                            <div className="h-1 w-8 bg-white/40 rounded" />
+                          </div>
+                          <div className="aspect-square rounded-xl overflow-hidden border border-white/20 shadow-lg">
+                            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=200" className="w-full h-full object-cover brightness-110" alt="" />
+                          </div>
+                          <div className="space-y-1">
+                            <div className="h-1.5 w-full bg-white/40 rounded" />
+                            <div className="h-1.2 w-2/3 bg-white/20 rounded" />
+                          </div>
+                        </div>
+                        {/* Facebook */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1 opacity-60">
+                            <Facebook size={8} className="text-white fill-white" />
+                            <div className="h-1 w-8 bg-white/40 rounded" />
+                          </div>
+                          <div className="aspect-square rounded-xl overflow-hidden border border-white/20 shadow-lg">
+                            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=200" className="w-full h-full object-cover opacity-90" alt="" />
+                          </div>
+                          <div className="space-y-1">
+                            <div className="h-1.5 w-full bg-white/40 rounded" />
+                            <div className="h-1.2 w-2/3 bg-white/20 rounded" />
+                          </div>
+                        </div>
+                        {/* iMessage */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1 opacity-60">
+                            <MessageSquare size={8} className="text-white fill-white" />
+                            <div className="h-1 w-8 bg-white/40 rounded" />
+                          </div>
+                          <div className="aspect-square rounded-xl overflow-hidden border border-white/20 shadow-lg relative">
+                            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=200" className="w-full h-full object-cover" alt="" />
+                            <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-blue-600/90 backdrop-blur-sm" />
+                          </div>
+                          <div className="space-y-1">
+                            <div className="h-1.5 w-full bg-white/40 rounded" />
+                            <div className="h-1.2 w-2/3 bg-white/20 rounded" />
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="absolute inset-0 bg-blue-600/40 backdrop-blur-[1px] opacity-0 group-hover/after:opacity-100 transition-opacity flex items-center justify-center">
-                      <span className="text-blue-600 font-black bg-white px-4 py-2 rounded-full shadow-xl">Perfect Preview (+2.4x CTR)</span>
+
+                    <div className="absolute inset-0 bg-blue-700/60 backdrop-blur-[2px] opacity-0 group-hover/after:opacity-100 transition-all duration-500 flex items-center justify-center z-30">
+                      <div className="bg-white px-6 py-3 rounded-2xl shadow-2xl border border-blue-100 flex items-center gap-3 scale-90 group-hover/after:scale-100 transition-transform">
+                        <Zap size={18} className="text-blue-600 fill-blue-600 animate-pulse" />
+                        <span className="text-blue-600 font-black text-sm tracking-tight uppercase">Perfect Preview (+2.4x CTR)</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1367,24 +1448,7 @@ export default function HomeContent() {
               <X size={16} />
             </button>
 
-            {/* Progress Bar Background */}
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/5 rounded-b-[1.5rem] overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-blue-600 via-blue-400 to-blue-600"
-                style={{
-                  width: '100%',
-                  animation: 'progress 12s linear infinite'
-                }}
-              />
-            </div>
           </div>
-
-          <style jsx>{`
-            @keyframes progress {
-              from { transform: translateX(-100%); }
-              to { transform: translateX(0); }
-            }
-          `}</style>
         </div>
       )}
 
