@@ -89,6 +89,7 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
                                 <button
                                     type="submit"
                                     disabled={loading}
+                                    data-track="compact-audit-btn"
                                     className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition-colors disabled:opacity-50 flex items-center gap-2 shrink-0 shadow-md shadow-blue-500/20"
                                 >
                                     {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Scan"}

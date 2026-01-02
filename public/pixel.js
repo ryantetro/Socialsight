@@ -150,6 +150,52 @@
         }
     });
 
+    // Capture Form Submissions (for Enter key)
+    document.addEventListener('submit', (e) => {
+        const form = e.target;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const trackedElement = form.closest('[data-track]') || submitBtn?.closest('[data-track]') || form.querySelector('[data-track]');
+
+        if (!trackedElement) return;
+
+        // Trigger a fake click event or manually call the logic
+        // For simplicity, we can just find the tracked button and let the click handler handle it?
+        // No, click handler might not trigger on form submit. Let's just send the event.
+
+        const trackLabel = trackedElement.getAttribute('data-track');
+        const trackText = trackedElement.innerText || trackedElement.getAttribute('aria-label') || 'Form Submit';
+
+        let apiHost = "https://www.socialsight.dev";
+        if (currentScript.src.includes('localhost')) apiHost = 'http://localhost:3000';
+
+        const payload = {
+            site_id: siteId,
+            event_type: 'click', // We treat it as a click/action for conversion logic
+            path: window.location.pathname,
+            referrer: document.referrer || null,
+            params: {
+                destination: 'form_submit',
+                text: `${trackLabel} (${trackText})`,
+                is_outbound: false,
+                is_tracked_element: true,
+                ab_variant: window.SS_VARIANT || 'none',
+                pricing_variant: window.SS_PRICING_VARIANT || 'none'
+            }
+        };
+
+        if (navigator.sendBeacon) {
+            const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+            navigator.sendBeacon(`${apiHost}/api/track`, blob);
+        } else {
+            fetch(`${apiHost}/api/track`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                keepalive: true
+            }).catch(console.error);
+        }
+    });
+
     // Optional: Handle History Changes for SPAs (Generic simple version)
     // ...
 })();
