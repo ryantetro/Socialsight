@@ -679,23 +679,23 @@ export default function HomeContent() {
                   prefillUrl={selectedUrl}
                 />
 
-                <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-1000 delay-300">
-                  <p className="text-xs font-black uppercase tracking-widest text-slate-400">Quick Test:</p>
-                  <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-1000 delay-300">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-300 select-none">Try:</span>
+                  <div className="flex flex-wrap gap-2">
                     {[
-                      { name: 'Stripe', url: 'https://stripe.com', logo: '/stripe.png' },
-                      { name: 'Vercel', url: 'https://vercel.com', logo: '/vercel.png' },
-                      { name: 'Airbnb', url: 'https://airbnb.com', logo: '/airbnb.png' }
+                      { name: 'Stripe', url: 'https://stripe.com', logo: '/stripe.png', color: 'hover:text-[#635BFF] hover:border-[#635BFF]/30' },
+                      { name: 'Vercel', url: 'https://vercel.com', logo: '/vercel.png', color: 'hover:text-black hover:border-black/30' },
+                      { name: 'Airbnb', url: 'https://airbnb.com', logo: '/airbnb.png', color: 'hover:text-[#FF5A5F] hover:border-[#FF5A5F]/30' }
                     ].map((sample) => (
                       <button
                         key={sample.name}
                         onClick={() => setSelectedUrl(sample.url)}
                         data-track="sample-audit-btn"
                         data-track-dest={sample.url}
-                        className="p-1 px-4 bg-white border border-slate-200 rounded-xl hover:border-blue-400 hover:shadow-md transition-all active:scale-95 flex items-center gap-2 group/btn"
+                        className={`px-4 py-1.5 bg-white border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 rounded-full text-xs font-bold text-slate-500 transition-all duration-300 flex items-center gap-2 active:scale-95 group ${sample.color}`}
                       >
-                        <img src={sample.logo} alt={sample.name} className="w-4 h-4 object-contain filter grayscale group-hover/btn:grayscale-0 transition-all" />
-                        <span className="text-sm font-bold text-slate-600 group-hover/btn:text-blue-600 transition-colors uppercase tracking-tight">{sample.name}</span>
+                        <img src={sample.logo} alt={sample.name} className="w-3.5 h-3.5 object-contain filter grayscale group-hover:grayscale-0 transition-all opacity-60 group-hover:opacity-100" />
+                        {sample.name}
                       </button>
                     ))}
                   </div>
@@ -1113,60 +1113,135 @@ export default function HomeContent() {
                   <div className="md:col-span-2 bg-white rounded-[2.5rem] border border-slate-200 p-10 relative overflow-hidden group hover:shadow-2xl hover:shadow-blue-900/5 transition-all duration-500">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-full blur-3xl -mr-32 -mt-32 transition-transform group-hover:scale-110" />
 
-                    <div className="relative z-10 flex flex-col md:flex-row gap-10 items-start">
-                      <div className="space-y-4 flex-1">
-                        <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 mb-4 rotate-3 group-hover:rotate-0 transition-transform">
+                    <div className="relative z-10 flex flex-col lg:flex-row gap-10 items-center">
+                      <div className="space-y-6 flex-1">
+                        <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg shadow-blue-600/20">
                           <Scale size={24} />
                         </div>
-                        <h3 className="text-3xl font-black text-slate-900 leading-tight">Competitor Benchmarking</h3>
+                        <h3 className="text-4xl font-extrabold text-slate-900 leading-tight">Win the feed.</h3>
                         <p className="text-slate-500 font-medium text-lg leading-relaxed">
-                          Don't guess. <span className="text-blue-600 font-bold">Know.</span> Compare your preview side-by-side with your top 2 competitors. We calculate your "Win Rate" so you dominate the feed every time.
+                          We calculate your <span className="font-bold text-slate-900">Win Rate</span> against top competitors so you never ship a weak link again.
                         </p>
+
+                        <div className="flex items-baseline gap-2 pb-2">
+                          <span className="text-5xl font-black text-[#0066FF] tracking-tight">98%</span>
+                          <span className="text-lg font-bold text-slate-700">Win Rate</span>
+                        </div>
+
+                        {/* Frictionless Input */}
+
                       </div>
 
-                      {/* Visual: The VS Bars */}
-                      <div className="w-full md:w-64 bg-slate-50 rounded-2xl p-6 border border-slate-100 space-y-4 select-none">
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-xs font-bold uppercase text-slate-400">
-                            <span>You</span>
-                            <span className="text-green-600">98/100</span>
+                      {/* Visual: High Contrast VS Grid */}
+                      <div className="w-full lg:w-96 relative perspective-1000 group-hover:perspective-[2000px] transition-all duration-700 ease-out">
+                        <div className="grid grid-cols-3 gap-3 items-end transform lg:rotate-y-[-10deg] lg:rotate-x-[5deg] group-hover:rotate-y-0 group-hover:rotate-x-0 transition-transform duration-700 preserve-3d">
+                          {/* Competitor A */}
+                          <div className="bg-slate-100 rounded-xl p-3 border border-slate-200 opacity-60 scale-90 relative">
+                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border border-red-200 whitespace-nowrap">Leaking</div>
+                            <div className="h-16 bg-slate-200 rounded-lg mb-2"></div>
+                            <div className="h-1.5 w-10 bg-slate-300 rounded mb-1"></div>
+                            <div className="h-1.5 w-6 bg-slate-300 rounded"></div>
                           </div>
-                          <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-600 w-[98%] rounded-full shadow-lg shadow-blue-500/20" />
+
+                          {/* Winner (Center) */}
+                          <div className="bg-white rounded-2xl p-4 border-2 border-blue-500 shadow-2xl shadow-blue-500/30 relative z-20 scale-110">
+                            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-green-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-lg shadow-green-500/30 animate-pulse">Winner</div>
+                            <div className="h-20 bg-blue-50 rounded-lg mb-3 flex items-center justify-center border border-blue-100">
+                              <span className="text-2xl">🔥</span>
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="h-2 w-16 bg-slate-800 rounded"></div>
+                              <div className="h-2 w-10 bg-slate-300 rounded"></div>
+                              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
+                                <div className="bg-green-500 h-full w-[98%]"></div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Competitor B */}
+                          <div className="bg-slate-100 rounded-xl p-3 border border-slate-200 opacity-60 scale-90 relative">
+                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border border-red-200 whitespace-nowrap">Leaking</div>
+                            <div className="h-16 bg-slate-200 rounded-lg mb-2"></div>
+                            <div className="h-1.5 w-10 bg-slate-300 rounded mb-1"></div>
+                            <div className="h-1.5 w-6 bg-slate-300 rounded"></div>
                           </div>
                         </div>
-                        <div className="space-y-2 opacity-50">
-                          <div className="flex justify-between text-xs font-bold uppercase text-slate-400">
-                            <span>Competitor A</span>
-                            <span>45/100</span>
-                          </div>
-                          <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
-                            <div className="h-full bg-slate-400 w-[45%] rounded-full" />
-                          </div>
-                        </div>
-                        <div className="pt-2 text-center">
-                          <span className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-black uppercase tracking-widest">
-                            Win Rate: 98%
-                          </span>
-                        </div>
+
+                        {/* Abstract Glow Behind */}
+                        <div className="absolute inset-0 bg-blue-500/20 blur-3xl -z-10 translate-y-4 translate-x-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                       </div>
                     </div>
                   </div>
 
                   {/* Feature 2: Analytics Engine (Bento Vertical) */}
-                  <div className="md:col-span-1 bg-slate-900 rounded-[2.5rem] p-10 relative overflow-hidden group text-white hover:scale-[1.02] transition-transform duration-500">
-                    <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-blue-600/20 to-transparent" />
-                    <div className="relative z-10 space-y-6">
-                      <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-white mb-4 backdrop-blur-sm">
-                        <BarChart3 size={24} />
+                  <div
+                    className="md:col-span-1 bg-slate-900 rounded-[2.5rem] p-8 relative overflow-hidden group text-white hover:scale-[1.02] transition-transform duration-500 cursor-pointer"
+                    onClick={() => {
+                      setActiveTab('analytics');
+                      document.getElementById('tool-scroll-target')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
+                    <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-blue-600/10 to-transparent" />
+
+                    <div className="relative z-10 flex flex-col h-full justify-between">
+                      <div className="space-y-6">
+                        <div className="flex justify-between items-start">
+                          <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-white backdrop-blur-sm shadow-inner shadow-white/10">
+                            <BarChart3 size={24} />
+                          </div>
+                          <div className="px-3 py-1 rounded-full bg-green-500/20 border border-green-500/30 text-green-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 animate-pulse">
+                            <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
+                            Live
+                          </div>
+                        </div>
+
+                        <div>
+                          <h3 className="text-2xl font-black mb-2">Analytics Engine</h3>
+                          <p className="text-slate-400 font-medium text-sm leading-relaxed">
+                            Stop guessing. Track real-time impressions and clicks the moment they happen.
+                          </p>
+                        </div>
                       </div>
-                      <h3 className="text-2xl font-black">Analytics Engine</h3>
-                      <p className="text-slate-400 font-medium leading-relaxed">
-                        Stop flying blind. Track real impressions, clicks, and CTR with our smart image proxy.
-                      </p>
-                      <div className="flex items-end gap-2 pt-4">
-                        <div className="text-4xl font-black tracking-tight">2.4x</div>
-                        <div className="mb-1 text-sm font-bold text-green-400">CTR uplift</div>
+
+                      {/* Active Metric + Sparkline */}
+                      <div className="mt-8 pt-6 border-t border-white/5">
+                        <div className="flex items-end justify-between mb-4">
+                          <div>
+                            <div className="text-sm font-bold text-slate-400 mb-1">Active CTR</div>
+                            <div className="text-4xl font-black tracking-tight text-white drop-shadow-[0_0_15px_rgba(37,99,235,0.5)]">
+                              2.4%
+                            </div>
+                          </div>
+                          {/* Mini Sparkline SVG */}
+                          <svg width="80" height="40" viewBox="0 0 80 40" className="opacity-80 overflow-visible">
+                            <path d="M0 35 Q 10 35, 20 20 T 40 25 T 60 15 T 80 8" fill="none" stroke="#4ade80" strokeWidth="3" strokeLinecap="round" />
+                            <path d="M0 35 L 80 35" fill="none" stroke="#4ade80" strokeWidth="1" strokeDasharray="4 4" opacity="0.3" />
+                          </svg>
+                        </div>
+
+                        {/* Live Feed - Scrollable */}
+                        <div className="h-24 overflow-y-auto relative scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent pr-2">
+                          <div className="space-y-3">
+                            <div className="text-[10px] text-slate-500 font-mono flex items-center gap-2">
+                              <span className="text-blue-400">●</span> Click from Twitter (NYC)
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono flex items-center gap-2">
+                              <span className="text-green-400">●</span> Impression in London (UK)
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono flex items-center gap-2">
+                              <span className="text-blue-400">●</span> Click from LinkedIn (SF)
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono flex items-center gap-2">
+                              <span className="text-green-400">●</span> Impression in Tokyo (JP)
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono flex items-center gap-2">
+                              <span className="text-green-400">●</span> Impression in Austin (TX)
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono flex items-center gap-2">
+                              <span className="text-blue-400">●</span> Click from Slack (Remote)
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1178,22 +1253,63 @@ export default function HomeContent() {
                     </div>
 
                     <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
-                      <div className="bg-white p-4 rounded-full shadow-xl shadow-blue-500/10 shrink-0 animate-pulse">
-                        <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white">
+                      <div className="bg-white p-4 rounded-full shadow-xl shadow-blue-500/10 shrink-0">
+                        <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white relative">
                           <Shield size={32} />
+                          <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full border-4 border-white flex items-center justify-center">
+                            <div className="w-2 h-2 bg-white rounded-full animate-ping" />
+                          </div>
                         </div>
                       </div>
 
-                      <div className="text-center md:text-left space-y-2">
-                        <h3 className="text-3xl font-black text-slate-900">The Guardian™</h3>
-                        <p className="text-slate-500 font-medium text-lg max-w-2xl">
-                          Automated daily monitoring. We scan your top 5 URLs every morning and send a Slack/Email alert the moment your score drops or an image breaks.
+                      <div className="text-center md:text-left space-y-4 flex-1">
+                        <div className="flex items-center gap-3 justify-center md:justify-start">
+                          <h3 className="text-3xl font-black text-slate-900">The Guardian™</h3>
+                          <div className="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-widest rounded-full flex items-center gap-2 border border-green-200">
+                            <div className="w-1.5 h-1.5 bg-green-600 rounded-full animate-pulse" />
+                            Monitoring Active
+                          </div>
+                        </div>
+
+                        <p className="text-slate-500 font-medium text-lg max-w-2xl leading-relaxed">
+                          Never ship a broken link again. We monitor your top URLs 24/7 and alert you <span className="text-slate-900 font-bold">the second</span> an image breaks.
                         </p>
+
+                        {/* Evidence: Last Scan Status */}
+                        <div className="flex items-center gap-4 justify-center md:justify-start pt-1">
+                          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Last Scan: 5 mins ago</div>
+                          <div className="h-4 w-px bg-slate-200"></div>
+                          <div className="flex items-center gap-1.5">
+                            {[1, 2, 3, 4, 5].map((i) => (
+                              <div key={i} className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" title="URL Healthy"></div>
+                            ))}
+                            <div className="text-xs font-bold text-green-600 ml-1">All Systems Healthy</div>
+                          </div>
+                        </div>
                       </div>
 
-                      <button className="md:ml-auto px-8 py-4 bg-white text-slate-900 border border-slate-200 rounded-xl font-bold shadow-sm hover:bg-slate-50 transition-colors shrink-0">
-                        Configure Alerts
-                      </button>
+                      <div className="flex flex-col items-center gap-3 shrink-0">
+                        <div className="flex items-center gap-3 opacity-60 grayscale hover:grayscale-0 transition-all duration-300">
+                          {/* Slack Logo */}
+                          <div className="flex gap-0.5">
+                            <div className="w-1 h-3 bg-[#E01E5A] rounded-full rotate-[-15deg]"></div>
+                            <div className="w-1 h-3 bg-[#36C5F0] rounded-full rotate-[-15deg]"></div>
+                            <div className="w-1 h-3 bg-[#2EB67D] rounded-full rotate-[-15deg]"></div>
+                            <div className="w-1 h-3 bg-[#ECB22E] rounded-full rotate-[-15deg]"></div>
+                          </div>
+                          <span className="text-xs font-bold text-slate-400">Slack</span>
+
+                          <div className="w-px h-3 bg-slate-300 mx-1"></div>
+
+                          {/* Email Icon */}
+                          <div className="w-4 h-4 bg-slate-400 rounded-sm"></div>
+                          <span className="text-xs font-bold text-slate-400">Email</span>
+                        </div>
+                        <button className="px-8 py-4 bg-white text-slate-900 border border-slate-200 rounded-xl font-bold shadow-sm hover:bg-slate-50 transition-colors flex items-center gap-2 group/btn">
+                          <Shield className="w-4 h-4 text-blue-600 group-hover/btn:scale-110 transition-transform" />
+                          Configure Alerts
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
