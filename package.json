@@ -19,6 +19,7 @@
     "canvas-confetti": "^1.9.4",
     "cheerio": "^1.1.2",
     "clsx": "^2.1.1",
+    "html2canvas": "^1.4.1",
     "lucide-react": "^0.562.0",
     "next": "16.1.1",
     "puppeteer-core": "^24.23.1",

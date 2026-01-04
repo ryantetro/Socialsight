@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { Search, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Search, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { InspectionResult } from '@/types';
 import { cn } from '@/lib/utils';
 import { useScrape } from '@/hooks/useScrape';
@@ -40,8 +40,16 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
 
         if (limitReached) return;
 
+        // Track Audit Click
+        // Track Audit Click
+        trackEvent('audit_clicked', { params: { url } });
+
         const data = await scrape(url);
         if (data) {
+            // Track Completion
+            // Track Completion
+            trackEvent('audit_completed', { params: { url } });
+
             onResult(data);
             setUrl('');
             setIsOpen(false);
@@ -49,6 +57,32 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
     };
 
     const isCompact = variant === 'compact';
+
+    // Helper to get the site ID from the pixel script
+    const getTrackingId = () => {
+        if (typeof document === 'undefined') return '';
+        const script = document.querySelector('script[src*="pixel.js"]');
+        return script?.getAttribute('data-id') || '';
+    };
+
+    const trackEvent = (eventType: string, extraData = {}) => {
+        const siteId = getTrackingId();
+        if (!siteId) return;
+
+        try {
+            fetch('/api/track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    site_id: siteId,
+                    event_type: eventType,
+                    ...extraData
+                })
+            });
+        } catch (e) {
+            // ignore
+        }
+    };
 
     if (isCompact) {
         return (
@@ -125,6 +159,9 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
                     placeholder={limitReached ? "Daily limit reached." : "e.g. yoursite.com"}
                     value={url}
                     disabled={limitReached}
+                    onFocus={() => {
+                        trackEvent('input_focused');
+                    }}
                     onChange={(e) => {
                         setUrl(e.target.value);
                     }}
@@ -149,7 +186,7 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
                         <Search className="w-4 h-4" />
                     )}
                     <span className={cn(loading && "animate-pulse")}>
-                        {loading ? "Scanning..." : limitReached ? "Limit Reached" : "Audit URL"}
+                        {loading ? "Scanning..." : limitReached ? "Limit Reached" : "Check My Link Preview"}
                     </span>
                 </button>
             </form>
@@ -166,9 +203,11 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
             </div>
 
             {!error && !limitReached && (
-                <p className="mt-4 text-slate-400 text-sm text-center font-medium">
-                    Audit any URL to find preview issues and fix them in minutes.
-                </p>
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-4 md:gap-8 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                    <span className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-green-500" /> No signup required</span>
+                    <span className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-green-500" /> Takes 5 seconds</span>
+                    <span className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-green-500" /> Free</span>
+                </div>
             )}
             {limitReached && (
                 <p className="mt-4 text-red-500 text-sm text-center font-bold animate-pulse">

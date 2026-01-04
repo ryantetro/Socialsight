@@ -35,14 +35,14 @@ async function runTest() {
     console.log(`📍 Site ID: ${TEST_SITE_ID}`);
 
     // Step 1: Send Event
-    console.log('\n1️⃣  Sending "Page View" event to API...');
+    console.log('\n1️⃣  Sending "audit_clicked" event to API...');
     try {
         const res = await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 site_id: TEST_SITE_ID,
-                event_type: 'page_view',
+                event_type: 'audit_clicked',
                 path: '/test-verification-script',
                 referrer: 'http://localhost:3000/console'
             })
@@ -52,6 +52,7 @@ async function runTest() {
             console.error(`❌ API Error: ${res.status} - ${res.statusText}`);
             const text = await res.text();
             console.error(text);
+            console.error('NOTE: You likely need to run the `supabase/migrations/20260103_relax_event_check.sql` migration to allow custom event types.');
             process.exit(1);
         }
         console.log('✅ API responded with 200 OK');

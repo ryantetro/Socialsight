@@ -665,10 +665,10 @@ export default function HomeContent() {
                 </div>
 
                 <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter text-slate-900 leading-[0.95]">
-                  Stop losing <span className="text-blue-600 italic">60%</span> of your social clicks.
+                  Your link preview might be <span className="text-blue-600 italic">broken</span>.
                 </h1>
                 <p className="text-lg md:text-2xl text-slate-500 max-w-xl font-medium leading-relaxed">
-                  Most links look broken when shared. We fix your OpenGraph tags and use AI to double your catch-rate instantly.
+                  Most founders leak clicks without realizing it. Paste your URL to see exactly what investors and customers see on X, LinkedIn, and iMessage.
                 </p>
               </div>
 
@@ -758,7 +758,7 @@ export default function HomeContent() {
                     <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] opacity-0 group-hover/before:opacity-100 transition-all duration-500 flex items-center justify-center z-30">
                       <div className="bg-white px-6 py-3 rounded-2xl shadow-2xl border border-red-100 flex items-center gap-3 scale-90 group-hover/before:scale-100 transition-transform">
                         <div className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                        <span className="text-red-600 font-black text-sm tracking-tight uppercase">Missing Data! (−60% CTR)</span>
+                        <span className="text-red-600 font-black text-sm tracking-tight uppercase">Broken Preview (Text Only)</span>
                       </div>
                     </div>
                   </div>

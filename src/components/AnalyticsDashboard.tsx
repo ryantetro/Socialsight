@@ -4,6 +4,7 @@ import { MousePointer2, Eye, TrendingUp, ArrowUpRight, Activity, BarChart3, Zap,
 import { cn } from '@/lib/utils';
 import { createClient } from '@supabase/supabase-js';
 import MetaSnippet from './MetaSnippet';
+import { ShareTractionModal } from './ShareTractionModal';
 
 // Initialize Supabase
 const supabase = createClient(
@@ -63,6 +64,7 @@ export default function AnalyticsDashboard() {
     const [countryStats, setCountryStats] = useState<{ code: string, name: string, count: number, percent: number }[]>([]);
     const [abStats, setAbStats] = useState<ABStats[]>([]);
     const [pricingStats, setPricingStats] = useState<ABStats[]>([]);
+    const [funnelStats, setFunnelStats] = useState({ impressions: 0, distinct_visitors: 0, input_focused: 0, audit_clicked: 0, audit_completed: 0 });
 
     // Colors for consistency: Twitter(black), LinkedIn(blue), FB(royal), Direct(slate), Google(red), etc.
     const SOURCE_COLORS: Record<string, string> = {
@@ -96,6 +98,10 @@ export default function AnalyticsDashboard() {
     const [metaImage, setMetaImage] = useState('');
     const [metaFavicon, setMetaFavicon] = useState('');
     const [isInspecting, setIsInspecting] = useState(false);
+
+    // Share Traction State
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+    const [tractionData, setTractionData] = useState<any>(null); // Using any for simplicity for now, essentially TractionCardProps
 
     // Link Builder State
     const [linkBuilderPlatform, setLinkBuilderPlatform] = useState('imessage');
@@ -299,6 +305,21 @@ export default function AnalyticsDashboard() {
         const clicks = eventsData.filter(e => e.event_type === 'click').length;
         const ctr = impressions > 0 ? ((clicks / impressions) * 100) : 0;
 
+        // Process Funnel
+        const inputFocused = eventsData.filter(e => e.event_type === 'input_focused').length;
+        const auditClicked = eventsData.filter(e => e.event_type === 'audit_clicked').length;
+        const auditCompleted = eventsData.filter(e => e.event_type === 'audit_completed').length;
+
+        // Distinct visitors (approximate via user_agent + IP/country hash if available, but here purely session/event based count isn't enough)
+        // We'll stick to event counts for V1
+        setFunnelStats({
+            impressions,
+            distinct_visitors: impressions, // Proxy
+            input_focused: inputFocused,
+            audit_clicked: auditClicked,
+            audit_completed: auditCompleted
+        });
+
         const newTotals = {
             impressions,
             clicks,
@@ -498,6 +519,83 @@ export default function AnalyticsDashboard() {
         }));
 
         setIsRefreshing(false);
+        setIsRefreshing(false);
+    };
+
+    const handleShareTraction = async () => {
+        if (!currentSite) return;
+
+        setIsRefreshing(true); // visual feedback
+
+        // Calculate Today vs Yesterday Date Ranges (Project Local Time usually, but here UTC/Server derived)
+        // A simple day boundary is acceptable for V1.
+        const now = new Date();
+        const startOfToday = new Date(now);
+        startOfToday.setHours(0, 0, 0, 0);
+
+        const startOfYesterday = new Date(startOfToday);
+        startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+
+        const { data: rawEvents } = await supabase
+            .from('analytics_events')
+            .select('*')
+            .eq('site_id', currentSite.id)
+            .gte('created_at', startOfYesterday.toISOString()) // Fetch 48h roughly
+            .order('created_at', { ascending: false });
+
+        if (!rawEvents) {
+            setIsRefreshing(false);
+            return;
+        }
+
+        const todayEvents = rawEvents.filter(e => new Date(e.created_at) >= startOfToday);
+        const yesterdayEvents = rawEvents.filter(e => new Date(e.created_at) < startOfToday && new Date(e.created_at) >= startOfYesterday);
+
+        const calcMetrics = (evs: any[]) => {
+            const impressions = evs.filter(e => e.event_type === 'page_view' || e.event_type === 'impression').length;
+            const clicks = evs.filter(e => e.event_type === 'click').length;
+            const ctr = impressions > 0 ? ((clicks / impressions) * 100) : 0;
+            return { impressions, clicks, ctr };
+        };
+
+        const tMetrics = calcMetrics(todayEvents);
+        const yMetrics = calcMetrics(yesterdayEvents);
+
+        // Top Source Today
+        const sourceCounts: Record<string, number> = {};
+        todayEvents.forEach(e => {
+            if (e.event_type === 'page_view') {
+                const raw = e.source || 'direct';
+                // Clean source label
+                const src = raw === 'direct' ? 'Direct' : raw.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                sourceCounts[src] = (sourceCounts[src] || 0) + 1;
+            }
+        });
+
+        const sortedSources = Object.entries(sourceCounts).sort(([, a], [, b]) => b - a);
+        const topSource = sortedSources.length > 0 ? {
+            name: sortedSources[0][0],
+            percent: tMetrics.impressions > 0 ? Math.round((sortedSources[0][1] / tMetrics.impressions) * 100) : 0
+        } : { name: 'Direct', percent: 100 }; // Default fallthrough
+
+        const launchDate = new Date('2026-01-01'); // Project Launch
+        const streak = Math.ceil(Math.abs(now.getTime() - launchDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        setTractionData({
+            date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            impressions: tMetrics.impressions,
+            impressionsDelta: tMetrics.impressions - yMetrics.impressions,
+            clicks: tMetrics.clicks,
+            clicksDelta: tMetrics.clicks - yMetrics.clicks,
+            ctr: parseFloat(tMetrics.ctr.toFixed(1)),
+            ctrDelta: parseFloat((tMetrics.ctr - yMetrics.ctr).toFixed(1)),
+            topSource,
+            chartData: stats, // Use existing 7 day stats (assuming detail view default) or fallback
+            streak
+        });
+
+        setIsRefreshing(false);
+        setIsShareModalOpen(true);
     };
 
     // --- Setup Logic ---
@@ -971,14 +1069,14 @@ export default function AnalyticsDashboard() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 md:gap-4 w-full lg:w-auto">
-                        <div className="flex-1 lg:flex-initial flex bg-slate-50 p-1.5 rounded-xl border border-slate-100/80 shadow-inner">
+                    <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto no-scrollbar">
+                        <div className="flex-1 lg:flex-initial flex bg-slate-50 p-1 rounded-xl border border-slate-100/80 shadow-inner shrink-0">
                             {['24h', '7d', '30d'].map((range) => (
                                 <button
                                     key={range}
                                     onClick={() => setTimeRange(range)}
                                     className={cn(
-                                        "flex-1 lg:px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                                        "px-3 md:px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
                                         timeRange === range ? "bg-white text-blue-600 shadow-sm border border-slate-200/50" : "text-slate-400 hover:text-slate-600"
                                     )}
                                 >
@@ -986,16 +1084,23 @@ export default function AnalyticsDashboard() {
                                 </button>
                             ))}
                         </div>
+
+                        <button
+                            onClick={handleShareTraction}
+                            className="bg-black text-white px-3 md:px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-slate-800 transition-all active:scale-95 text-xs md:text-sm shrink-0 whitespace-nowrap"
+                        >
+                            <Share2 size={16} /> <span className="hidden md:inline">Share</span>
+                        </button>
                         <button
                             onClick={() => currentSite && loadDashboardData(currentSite.id)}
-                            className="w-11 h-11 flex items-center justify-center bg-white border border-slate-200 shadow-sm rounded-xl text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:shadow-md active:scale-95 transition-all shrink-0"
+                            className="w-10 h-10 md:w-11 md:h-11 flex items-center justify-center bg-white border border-slate-200 shadow-sm rounded-xl text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:shadow-md active:scale-95 transition-all shrink-0"
                             title="Refresh Data"
                         >
                             <RefreshCw size={16} className={cn(isRefreshing && "animate-spin text-blue-600")} />
                         </button>
                     </div>
                 </div>
-            </div>
+            </div >
 
             <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden relative">
                 <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-8 relative z-10">
@@ -1160,6 +1265,71 @@ export default function AnalyticsDashboard() {
 
             {/* New Professional Analytics Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Funnel Breakdown - New Card */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm col-span-1 md:col-span-2 lg:col-span-1">
+                    <div className="flex items-center gap-2 mb-6">
+                        <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
+                            <TrendingUp size={20} />
+                        </div>
+                        <h3 className="font-bold text-slate-700">Conversion Funnel</h3>
+                    </div>
+
+                    <div className="space-y-4">
+                        {/* Step 1: Visitors */}
+                        <div className="relative pl-4 border-l-2 border-slate-100">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs font-bold uppercase text-slate-400 tracking-wider">Visitors</span>
+                                <span className="font-black text-slate-900">{funnelStats.impressions}</span>
+                            </div>
+                            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                <div className="bg-slate-300 h-full rounded-full w-full" />
+                            </div>
+                        </div>
+
+                        {/* Step 2: Interest (Input Focus) */}
+                        <div className="relative pl-4 border-l-2 border-purple-100">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs font-bold uppercase text-purple-600 tracking-wider">Interest (Focused)</span>
+                                <span className="font-black text-purple-900">{funnelStats.input_focused}</span>
+                            </div>
+                            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                <div className="bg-purple-400 h-full rounded-full" style={{ width: `${funnelStats.impressions > 0 ? (funnelStats.input_focused / funnelStats.impressions) * 100 : 0}%` }} />
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                                {funnelStats.impressions > 0 ? ((funnelStats.input_focused / funnelStats.impressions) * 100).toFixed(1) : 0}% conversion
+                            </div>
+                        </div>
+
+                        {/* Step 3: Intent (Clicked) */}
+                        <div className="relative pl-4 border-l-2 border-blue-100">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs font-bold uppercase text-blue-600 tracking-wider">Action (Clicked)</span>
+                                <span className="font-black text-blue-900">{funnelStats.audit_clicked}</span>
+                            </div>
+                            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                <div className="bg-blue-500 h-full rounded-full" style={{ width: `${funnelStats.input_focused > 0 ? (funnelStats.audit_clicked / funnelStats.input_focused) * 100 : 0}%` }} />
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                                {funnelStats.input_focused > 0 ? ((funnelStats.audit_clicked / funnelStats.input_focused) * 100).toFixed(1) : 0}% of interested
+                            </div>
+                        </div>
+
+                        {/* Step 4: Success */}
+                        <div className="relative pl-4 border-l-2 border-green-100">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs font-bold uppercase text-green-600 tracking-wider">Success (Scanned)</span>
+                                <span className="font-black text-green-900">{funnelStats.audit_completed}</span>
+                            </div>
+                            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                <div className="bg-green-500 h-full rounded-full" style={{ width: `${funnelStats.audit_clicked > 0 ? (funnelStats.audit_completed / funnelStats.audit_clicked) * 100 : 0}%` }} />
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                                {funnelStats.audit_clicked > 0 ? ((funnelStats.audit_completed / funnelStats.audit_clicked) * 100).toFixed(1) : 0}% completion rate
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Top Pages Card */}
                 <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-500">
                     <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2 relative z-10">
@@ -1371,6 +1541,15 @@ export default function AnalyticsDashboard() {
                     )}
                 </div>
             </div>
-        </div>
+            {
+                tractionData && (
+                    <ShareTractionModal
+                        isOpen={isShareModalOpen}
+                        onClose={() => setIsShareModalOpen(false)}
+                        data={tractionData}
+                    />
+                )
+            }
+        </div >
     );
 }
