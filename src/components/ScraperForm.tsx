@@ -65,9 +65,19 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
         return script?.getAttribute('data-id') || '';
     };
 
+    const getVariants = () => {
+        if (typeof window === 'undefined') return { ab_variant: null, pricing_variant: null };
+        return {
+            ab_variant: (window as any).SS_VARIANT || null,
+            pricing_variant: (window as any).SS_PRICING_VARIANT || null
+        };
+    };
+
     const trackEvent = (eventType: string, extraData = {}) => {
         const siteId = getTrackingId();
         if (!siteId) return;
+
+        const variants = getVariants();
 
         try {
             fetch('/api/track', {
@@ -76,6 +86,8 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
                 body: JSON.stringify({
                     site_id: siteId,
                     event_type: eventType,
+                    ab_variant: variants.ab_variant,
+                    pricing_variant: variants.pricing_variant,
                     ...extraData
                 })
             });

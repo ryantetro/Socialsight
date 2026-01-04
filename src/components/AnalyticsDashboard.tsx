@@ -473,7 +473,7 @@ export default function AnalyticsDashboard() {
             if (variant === 'A' || variant === 'B') {
                 if (e.event_type === 'page_view' || e.event_type === 'impression') {
                     abMap[variant].impressions++;
-                } else if (e.event_type === 'click' && ((e.params?.text as string)?.includes('audit-btn'))) {
+                } else if (e.event_type === 'audit_clicked' || (e.event_type === 'click' && ((e.params?.text as string)?.includes('audit-btn')))) {
                     abMap[variant].audits++;
                 }
             }
@@ -483,7 +483,7 @@ export default function AnalyticsDashboard() {
             if (pVariant === 'A' || pVariant === 'B') {
                 if (e.event_type === 'page_view' || e.event_type === 'impression') {
                     pMap[pVariant].impressions++;
-                } else if (e.event_type === 'click' && ((e.params?.text as string)?.includes('audit-btn'))) {
+                } else if (e.event_type === 'audit_clicked' || (e.event_type === 'click' && ((e.params?.text as string)?.includes('audit-btn')))) {
                     pMap[pVariant].audits++;
                 }
             }
