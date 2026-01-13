@@ -31,9 +31,8 @@ export function useProfile() {
             try {
                 const parsed = JSON.parse(cachedProfile);
                 setProfile(parsed);
-                // If we have a cached profile, we are "not loading" (optimistic)
-                // But we still fetch deeply to update tier if changed
-                setLoading(false);
+                // We do NOT set loading(false) here because we need to verify the User session first.
+                // Optimistic profile is fine for UI, but logic depends on 'user' object.
             } catch (e) {
                 // Ignore parse errors
             }

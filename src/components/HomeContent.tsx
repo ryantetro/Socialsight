@@ -19,6 +19,9 @@ import { InspectionResult } from '@/types';
 import { cn } from '@/lib/utils';
 import PlanPill from '@/components/PlanPill';
 import LockedFeature from '@/components/LockedFeature';
+import Link from 'next/link';
+import ABLandingPage from './ABLandingPage';
+import Navbar from '@/components/Navbar'; // New Import
 
 import { useProfile } from '@/hooks/useProfile';
 
@@ -34,13 +37,14 @@ export default function HomeContent() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [showVictoryModal, setShowVictoryModal] = useState(false);
-  const [abVariant, setAbVariant] = useState<'A' | 'B' | null>(null);
+  const [abVariant, setAbVariant] = useState<'A' | 'B' | 'C' | null>(null);
   const [pricingVariant, setPricingVariant] = useState<'A' | 'B' | null>(null);
   const [globalStats, setGlobalStats] = useState<{ totalScans: number, activity: any[] }>({ totalScans: 13530, activity: [] });
   const [currentNotificationIndex, setCurrentNotificationIndex] = useState(0);
   const [isNotificationVisible, setIsNotificationVisible] = useState(false);
   const [shouldRenderNotification, setShouldRenderNotification] = useState(false);
   const [isStealth, setIsStealth] = useState(false);
+  const [abData, setAbData] = useState<any>(null);
 
   // Initialize from localStorage immediately if possible, but safely for SSR.
   const [activeTab, setActiveTabState] = useState<'audit' | 'fix' | 'compare' | 'monitor' | 'analytics' | 'history'>('audit');
@@ -88,9 +92,6 @@ export default function HomeContent() {
 
   // isPaid check should also consider the All-Access one-time payment
   // Note: the profile logic might already map the tier based on webhook, but we'll be safe here.
-
-  // BLOCKING: If auth is loading (fetching profile), show loader.
-  // This prevents the "Free Tier" flash and ensures 'Agency' is ready before rendering content.
 
   // Recalculate permissions based on effective tier
   const permissions = {
@@ -173,9 +174,13 @@ export default function HomeContent() {
   // A/B Variant Assignment
   useEffect(() => {
     // Landing Page Variant
-    let variant = localStorage.getItem('ss_ab_variant') as 'A' | 'B' | null;
+    let variant = localStorage.getItem('ss_ab_variant') as 'A' | 'B' | 'C' | null;
     if (!variant) {
-      variant = Math.random() > 0.5 ? 'B' : 'A';
+      const rand = Math.random();
+      if (rand < 0.33) variant = 'A';
+      else if (rand < 0.66) variant = 'B';
+      else variant = 'C';
+
       localStorage.setItem('ss_ab_variant', variant);
     }
     setAbVariant(variant);
@@ -184,12 +189,24 @@ export default function HomeContent() {
     // Pricing Variant
     let pVariant = localStorage.getItem('ss_pricing_variant') as 'A' | 'B' | null;
     if (!pVariant) {
+      // Skew towards B (All Access) for now to test it more? Or keep 50/50?
+      // Keeping 50/50
       pVariant = Math.random() > 0.5 ? 'B' : 'A';
       localStorage.setItem('ss_pricing_variant', pVariant);
     }
     setPricingVariant(pVariant);
     (window as any).SS_PRICING_VARIANT = pVariant;
   }, []);
+
+  // Fetch Data for Variant C
+  useEffect(() => {
+    if (abVariant === 'C' && !abData) {
+      fetch('/api/ab-data')
+        .then(res => res.json())
+        .then(data => setAbData(data))
+        .catch(err => console.error("Failed to fetch AB data", err));
+    }
+  }, [abVariant]);
 
   // Load Social Proof Stats
   useEffect(() => {
@@ -463,6 +480,52 @@ export default function HomeContent() {
     </div>;
   }
 
+  // Variant C Render
+  if (abVariant === 'C' && !result && activeTab === 'audit') {
+    // Note: We only show Variant C if NO result and NOT logged in (or we can decide if logged in users see it)
+    // Actually, typical flow: user lands -> sees landing page.
+    // So 'user' check might be optional, but usually logged in users go to "App" view.
+    // For now, let's treat it like the other variants -> if !result, show Landing.
+    // But Variants A/B share the same "App Shell". C is a total takeover.
+    // So distinct return is needed.
+
+    // We pass handleResult to transition to the main app view upon scan.
+    return (
+      <>
+        <DebugPlanSwitcher
+          currentTier={effectiveTier}
+          onTierChange={() => { }} // simplified for C
+          currentVariant={abVariant}
+          onVariantChange={(v) => {
+            setAbVariant(v);
+            localStorage.setItem('ss_ab_variant', v);
+            window.location.reload();
+          }}
+          currentPricingVariant={pricingVariant}
+          onPricingVariantChange={() => { }}
+          isStealth={isStealth}
+          onStealthChange={() => { }}
+        />
+        <div className={cn("transition-opacity duration-300 ease-in-out", isTransitioning ? "opacity-0" : "opacity-100")}>
+          <ABLandingPage
+            stats={abData?.stats}
+            leaderboard={abData?.leaderboard}
+            onResult={handleResult}
+            user={user}
+            tier={effectiveTier}
+            isPaid={isPaid}
+            onCheckout={(priceId) => handleCheckout(priceId)}
+            onViewReport={handleViewReport}
+            onReset={reset}
+            isRestoring={isRestoring}
+            isLimitReached={isLimitReached}
+            setActiveTab={setActiveTab}
+          />
+        </div>
+      </>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#fafafa]">
 
@@ -522,111 +585,21 @@ export default function HomeContent() {
 
       {/* Dynamic Header/Navbar */}
 
-      <nav className={cn(
-        "max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between transition-all duration-700 ease-in-out z-50",
-        result ? "sticky top-0" : "bg-transparent py-6"
-      )}>
-
-        {/* SECTION 1: Logo & Scan */}
-        <div className="flex items-center gap-4 min-w-0 shrink-0 z-20 md:flex-1">
-          <div
-            onClick={reset}
-            role="button"
-            className="flex items-center gap-2 font-black text-2xl tracking-tighter cursor-pointer group shrink-0"
-          >
-            <div className="bg-blue-600 text-white w-10 h-10 flex items-center justify-center rounded-full group-hover:scale-110 transition-transform shadow-lg shadow-blue-500/20 z-10 relative">
-              <span className="text-lg font-black italic">S</span>
-            </div>
-
-            {/* Animated Logo Text */}
-            <div className={cn(
-              "overflow-hidden transition-all duration-700 ease-in-out flex flex-col justify-center",
-              result ? "max-w-0 opacity-0" : "max-w-[200px] opacity-100"
-            )}>
-              <span className="hidden lg:inline whitespace-nowrap">Social<span className="text-blue-600">Sight</span></span>
-            </div>
-          </div>
-
-          {result && (
-            <div className="hidden lg:block animate-fade-in">
-              <ScraperForm onResult={handleResult} variant="compact" limitReached={isLimitReached} align="left" />
-            </div>
-          )}
-        </div>
-
-        {/* SECTION 2: Center Navigation (Tabs or Links) */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex justify-center z-30 w-full pointer-events-none">
-          <div className="pointer-events-auto">
-            {(result || activeTab !== 'audit') ? (
-              <div className="hidden md:flex bg-white/80 backdrop-blur-xl border border-slate-200/50 p-1.5 rounded-2xl shadow-sm items-center gap-1 animate-fade-in">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={cn(
-                      "px-3 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all flex items-center gap-2 border border-transparent",
-                      activeTab === tab.id
-                        ? "bg-white text-blue-600 shadow-sm border-slate-100"
-                        : "text-slate-500 hover:text-slate-900 hover:bg-slate-100/50"
-                    )}
-                  >
-                    <tab.icon size={14} className={cn(tab.fill && activeTab === tab.id && "fill-blue-600")} />
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="hidden lg:flex bg-white/50 backdrop-blur-sm border border-slate-200/50 rounded-full px-6 py-2.5 items-center gap-8 font-bold text-sm text-slate-500 shadow-sm animate-fade-in">
-                <a href="#features" className="hover:text-blue-600 transition-colors">Utility</a>
-                <a href="#pricing" className="hover:text-blue-600 transition-colors">Pricing</a>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* SECTION 3: Right Actions */}
-        <div className="flex items-center justify-end gap-3 shrink-0 z-20 flex-1">
-          {user ? (
-            <div className="flex items-center gap-3">
-              {result && !isPaid && (
-                <button
-                  onClick={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
-                  className="hidden xl:flex px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95 whitespace-nowrap"
-                >
-                  Upgrade Plan
-                </button>
-              )}
-              <UserNav
-                user={user}
-                tier={effectiveTier}
-                isPaid={isPaid}
-                onViewReport={handleViewReport}
-                onViewHistory={() => setActiveTab('history')}
-                onViewDashboard={() => setActiveTab('monitor')}
-                onViewAnalytics={() => setActiveTab('analytics')}
-                isLoading={isRestoring}
-              />
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <a href="/login" className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-900 transition-colors">
-                Sign In
-              </a>
-              <button
-                onClick={() => {
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                  // Focus the input (with a slight delay to let scroll start)
-                  setTimeout(() => document.getElementById('url-input')?.focus(), 100);
-                }}
-                data-track="nav-get-started-btn"
-                className="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-xs shadow-lg hover:shadow-black/10 hover:translate-y-[-1px] transition-all"
-              >
-                Get Started
-              </button>
-            </div>
-          )}
-        </div>
-      </nav >
+      {/* Dynamic Header/Navbar */}
+      <Navbar
+        user={user}
+        tier={effectiveTier}
+        isPaid={isPaid}
+        result={result}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onCheckout={(priceId) => handleCheckout(priceId)} // adapter needed as handleCheckout takes 2 args optionally
+        onViewReport={handleViewReport}
+        onReset={reset}
+        isRestoring={isRestoring}
+        onResult={handleResult}
+        isLimitReached={isLimitReached}
+      />
 
       {/* Pro Banner - Hide if Paid */}
       {

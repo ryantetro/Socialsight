@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { useProfile } from '@/hooks/useProfile';
-import UserNav from '@/components/UserNav';
 import { Share2, Calendar, ArrowRight, ExternalLink, Search, LayoutDashboard, Zap, Scale, Activity, PieChart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { InspectionResult } from '@/types';
+import { createClient } from '@/lib/supabase/client';
+import { useProfile } from '@/hooks/useProfile';
+import UserNav from '@/components/UserNav';
 import Link from 'next/link';
 
 interface ScanHistoryItem {

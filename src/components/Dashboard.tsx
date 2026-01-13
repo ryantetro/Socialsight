@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, LineChart, AlertCircle, CheckCircle2, ArrowLeft, ExternalLink, RefreshCw, Shield } from 'lucide-react';
+import { Plus, Trash2, LineChart, AlertCircle, CheckCircle2, ArrowLeft, ExternalLink, RefreshCw, Shield, X, CreditCard } from 'lucide-react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useScrape } from '@/hooks/useScrape';
 import { InspectionResult } from '@/types';
@@ -19,7 +20,18 @@ export default function Dashboard() {
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [isAdding, setIsAdding] = useState(false);
     const [newUrl, setNewUrl] = useState('');
+    const [showFeaturedModal, setShowFeaturedModal] = useState(false);
+    const searchParams = useSearchParams();
+    const router = useRouter();
     const { scrape, loading } = useScrape();
+
+    useEffect(() => {
+        if (searchParams.get('redirect') === 'featured') {
+            setShowFeaturedModal(true);
+            // Clean up URL
+            router.replace('/dashboard');
+        }
+    }, [searchParams, router]);
 
     useEffect(() => {
         const saved = localStorage.getItem('guardian_projects');
@@ -346,6 +358,57 @@ export default function Dashboard() {
                     </div>
                 )}
             </div>
+            {showFeaturedModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                            <h3 className="font-black text-xl text-slate-900">Get Verified</h3>
+                            <button
+                                onClick={() => setShowFeaturedModal(false)}
+                                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="p-8 space-y-6">
+                            <div className="p-4 bg-blue-50 text-blue-900 text-sm font-medium rounded-xl border border-blue-100 flex gap-3">
+                                <Shield className="shrink-0 text-blue-600" size={20} />
+                                <p>You verify your site. We grant you the badge. Unlock premium trust signals for your visitors.</p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Website URL</label>
+                                    <input
+                                        type="text"
+                                        placeholder="https://yourwebsite.com"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all font-medium"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Company Name</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Acme Inc."
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all font-medium"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="pt-2">
+                                <button className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-base flex items-center justify-center gap-2 hover:bg-black hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-slate-900/10">
+                                    <CreditCard size={18} />
+                                    Proceed to Checkout ($29)
+                                </button>
+                                <p className="text-center text-xs text-slate-400 mt-4 font-medium">
+                                    Secure payment via Stripe • One-time fee
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

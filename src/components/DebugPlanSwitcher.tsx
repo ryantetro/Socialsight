@@ -8,8 +8,8 @@ import { Settings, X } from 'lucide-react';
 interface DebugPlanSwitcherProps {
     currentTier: UserTier | 'signed-out';
     onTierChange: (tier: UserTier | 'signed-out') => void;
-    currentVariant: 'A' | 'B' | null;
-    onVariantChange: (variant: 'A' | 'B') => void;
+    currentVariant: 'A' | 'B' | 'C' | null;
+    onVariantChange: (variant: 'A' | 'B' | 'C') => void;
     currentPricingVariant: 'A' | 'B' | null;
     onPricingVariantChange: (variant: 'A' | 'B') => void;
     isStealth: boolean;
@@ -96,10 +96,10 @@ export default function DebugPlanSwitcher({
                         <section className="pt-3 border-t border-slate-800">
                             <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Home Variant</h4>
                             <div className="grid grid-cols-2 gap-2">
-                                {['A', 'B'].map((v) => (
+                                {['A', 'B', 'C'].map((v) => (
                                     <button
                                         key={v}
-                                        onClick={() => onVariantChange(v as 'A' | 'B')}
+                                        onClick={() => onVariantChange(v as 'A' | 'B' | 'C')}
                                         className={cn(
                                             "px-3 py-2 text-xs font-bold rounded-lg transition-colors border",
                                             currentVariant === v
