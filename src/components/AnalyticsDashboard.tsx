@@ -460,7 +460,8 @@ export default function AnalyticsDashboard() {
         // Process A/B Experiments (Landing vs Pricing)
         const abMap: Record<string, { impressions: number, audits: number }> = {
             'A': { impressions: 0, audits: 0 },
-            'B': { impressions: 0, audits: 0 }
+            'B': { impressions: 0, audits: 0 },
+            'C': { impressions: 0, audits: 0 }
         };
         const pMap: Record<string, { impressions: number, audits: number }> = {
             'A': { impressions: 0, audits: 0 },
@@ -470,7 +471,7 @@ export default function AnalyticsDashboard() {
         eventsData.forEach(e => {
             // Landing Variant
             const variant = e.ab_variant || (e.params?.ab_variant as string) || 'none';
-            if (variant === 'A' || variant === 'B') {
+            if (variant === 'A' || variant === 'B' || variant === 'C') {
                 if (e.event_type === 'page_view' || e.event_type === 'impression') {
                     abMap[variant].impressions++;
                 } else if (e.event_type === 'audit_clicked' || (e.event_type === 'click' && ((e.params?.text as string)?.includes('audit-btn')))) {

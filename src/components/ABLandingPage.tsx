@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CheckCircle2, Star, Shield, Zap, Layout, Lock, ScanFace, Code2, Globe2, ArrowRight, CreditCard, X } from 'lucide-react';
 import ScraperForm from '@/components/ScraperForm';
 import { InspectionResult } from '@/types';
@@ -57,6 +57,23 @@ export default function ABLandingPage({
     const { user: profileUser, loading: authLoading } = useProfile();
     const [result, setResult] = useState<InspectionResult | null>(null);
     const [showFeaturedModal, setShowFeaturedModal] = useState(false);
+
+    // Track Page View on Mount
+    useEffect(() => {
+        // Simple fire-and-forget tracking
+        fetch('/api/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                site_id: 'socialsight_landing', // Virtual ID for landing page
+                event_type: 'page_view',
+                path: window.location.pathname,
+                referrer: document.referrer,
+                ab_variant: 'C',
+                pricing_variant: localStorage.getItem('ss_pricing_variant') || 'A'
+            })
+        }).catch(err => console.error("Tracking failed", err));
+    }, []);
 
     // Use passed user object or fallback to client-side fetch
     const effectiveUser = user || profileUser;
