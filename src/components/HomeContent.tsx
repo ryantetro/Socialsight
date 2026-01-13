@@ -174,15 +174,10 @@ export default function HomeContent() {
   // A/B Variant Assignment
   useEffect(() => {
     // Landing Page Variant
-    let variant = localStorage.getItem('ss_ab_variant') as 'A' | 'B' | 'C' | null;
-    if (!variant) {
-      const rand = Math.random();
-      if (rand < 0.33) variant = 'A';
-      else if (rand < 0.66) variant = 'B';
-      else variant = 'C';
-
-      localStorage.setItem('ss_ab_variant', variant);
-    }
+    // Landing Page Variant
+    // FORCE VARIANT C (By User Request for Traffic Test)
+    let variant = 'C' as const;
+    localStorage.setItem('ss_ab_variant', variant);
     setAbVariant(variant);
     (window as any).SS_VARIANT = variant;
 
