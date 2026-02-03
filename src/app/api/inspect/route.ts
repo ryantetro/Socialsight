@@ -6,6 +6,29 @@ import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
 import path from 'path';
 
+const FAST_SCRAPE_TIMEOUT_MS = 5000;
+const IMAGE_CHECK_TIMEOUT_MS = 2500;
+const PUPPETEER_NAV_TIMEOUT_MS = 30000;
+const HYDRATION_WAIT_MS = 2000;
+const IMAGE_REACHABILITY_TTL_MS = 10 * 60 * 1000;
+const NON_RETRIABLE_AXIOS_CODES = new Set([
+    'ERR_INVALID_URL',
+    'ENOTFOUND',
+    'EAI_AGAIN',
+    'EPROTO',
+    'CERT_HAS_EXPIRED',
+    'ERR_TLS_CERT_ALTNAME_INVALID',
+    'UNABLE_TO_VERIFY_LEAF_SIGNATURE'
+]);
+const TRANSIENT_AXIOS_CODES = new Set([
+    'ECONNABORTED',
+    'ECONNRESET',
+    'ECONNREFUSED',
+    'ETIMEDOUT',
+    'EHOSTUNREACH'
+]);
+const imageReachabilityCache = new Map<string, { ok: boolean; expiresAt: number }>();
+
 // Helper to find local Chrome for development (Reuse from screenshot route)
 const getLocalExePath = () => {
     if (process.platform === 'win32') {
@@ -40,7 +63,7 @@ export async function POST(req: NextRequest) {
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
                     'Accept-Language': 'en-US,en;q=0.5'
                 },
-                timeout: 5000, // Short timeout for fast path
+                timeout: FAST_SCRAPE_TIMEOUT_MS, // Short timeout for fast path
             });
             html = data;
         } catch (axiosError: any) {
@@ -48,10 +71,17 @@ export async function POST(req: NextRequest) {
 
             // define errors that trigger fallback
             const status = axiosError.response?.status;
+            const errorCode = axiosError.code as string | undefined;
             const isBlockingError = status === 403 || status === 401 || status === 429 || status === 503;
-            const isTimeout = axiosError.code === 'ECONNABORTED';
+            const isTimeout = errorCode === 'ECONNABORTED';
+            const isNonRetriableNetworkError = !!errorCode && NON_RETRIABLE_AXIOS_CODES.has(errorCode);
+            const isTransientNetworkError = !!errorCode && TRANSIENT_AXIOS_CODES.has(errorCode);
 
-            if (isBlockingError || isTimeout || !status) {
+            if (isNonRetriableNetworkError) {
+                throw axiosError;
+            }
+
+            if (isBlockingError || isTimeout || (!status && isTransientNetworkError)) {
                 console.log(`[Scraper] Attempting fallback (Puppeteer) for ${url}...`);
                 usedFallback = true;
 
@@ -79,10 +109,10 @@ export async function POST(req: NextRequest) {
                     });
 
                     // Navigate and wait for content
-                    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+                    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: PUPPETEER_NAV_TIMEOUT_MS });
 
                     // Simple wait for hydration
-                    await new Promise(r => setTimeout(r, 2000));
+                    await new Promise(r => setTimeout(r, HYDRATION_WAIT_MS));
 
                     html = await page.content();
                 } catch (puppeteerError: any) {
@@ -111,6 +141,11 @@ export async function POST(req: NextRequest) {
 
         const checkReachability = async (imgUrl?: string, referer?: string) => {
             if (!imgUrl) return false;
+            const cached = imageReachabilityCache.get(imgUrl);
+            const now = Date.now();
+            if (cached && cached.expiresAt > now) {
+                return cached.ok;
+            }
             try {
                 // Same validation logic as before
                 const response = await axios.head(imgUrl, {
@@ -123,10 +158,12 @@ export async function POST(req: NextRequest) {
                         'Sec-Fetch-Mode': 'no-cors',
                         'Sec-Fetch-Site': 'cross-site'
                     },
-                    timeout: 5000,
+                    timeout: IMAGE_CHECK_TIMEOUT_MS,
                     validateStatus: (status) => status === 200 || status === 403,
                 });
-                return response.status === 200 || response.status === 403;
+                const ok = response.status === 200 || response.status === 403;
+                imageReachabilityCache.set(imgUrl, { ok, expiresAt: now + IMAGE_REACHABILITY_TTL_MS });
+                return ok;
             } catch (e) {
                 try {
                     const response = await axios.get(imgUrl, {
@@ -140,11 +177,14 @@ export async function POST(req: NextRequest) {
                             'Sec-Fetch-Mode': 'no-cors',
                             'Sec-Fetch-Site': 'cross-site'
                         },
-                        timeout: 5000,
+                        timeout: IMAGE_CHECK_TIMEOUT_MS,
                         validateStatus: (status) => status < 400 || status === 403,
                     });
-                    return response.status < 400 || response.status === 403;
+                    const ok = response.status < 400 || response.status === 403;
+                    imageReachabilityCache.set(imgUrl, { ok, expiresAt: now + IMAGE_REACHABILITY_TTL_MS });
+                    return ok;
                 } catch (e2) {
+                    imageReachabilityCache.set(imgUrl, { ok: false, expiresAt: now + IMAGE_REACHABILITY_TTL_MS });
                     return false;
                 }
             }
@@ -161,8 +201,16 @@ export async function POST(req: NextRequest) {
         const resolvedOgImage = resolveUrl(rawOgImage || imageSrc || itemPropImage);
         const resolvedTwitterImage = resolveUrl(rawTwitterImage || rawOgImage || imageSrc);
 
-        const isOgImageValid = await checkReachability(resolvedOgImage, url);
-        const isTwitterImageValid = await checkReachability(resolvedTwitterImage, url);
+        const [ogImageCheckResult, twitterImageCheckResult] = await Promise.all([
+            checkReachability(resolvedOgImage, url),
+            resolvedTwitterImage && resolvedTwitterImage !== resolvedOgImage
+                ? checkReachability(resolvedTwitterImage, url)
+                : Promise.resolve(undefined)
+        ]);
+        const isOgImageValid = ogImageCheckResult;
+        const isTwitterImageValid = typeof twitterImageCheckResult === 'boolean'
+            ? twitterImageCheckResult
+            : (resolvedTwitterImage ? isOgImageValid : false);
 
         const metadata = {
             url: url,
