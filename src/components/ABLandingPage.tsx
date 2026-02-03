@@ -415,7 +415,7 @@ export default function ABLandingPage({
                             <div className="w-14 h-14 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                                 <Globe2 size={28} strokeWidth={2.5} />
                             </div>
-                            <h3 className="text-xl font-bold text-slate-900 mb-3">Competitor Spy</h3>
+                            <h3 className="text-xl font-bold text-slate-900 mb-3">Competitor Benchmarks</h3>
                             <p className="text-slate-500 leading-relaxed text-sm">
                                 See what your competitors are doing. Analyze their tags and see how you stack up. Steal their strategies to boost your own CTR.
                             </p>
@@ -567,7 +567,7 @@ export default function ABLandingPage({
                         <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-100 rounded-full text-xs font-bold text-blue-600 mb-6 uppercase tracking-wider">
                             Pricing
                         </div>
-                        <h2 className="text-4xl md:text-6xl font-black mb-6 text-slate-900">Get your website to <br /> <span className="text-emerald-500">the next level</span></h2>
+                        <h2 className="text-4xl md:text-6xl font-black mb-6 text-slate-900">Turn every shared link <br /> <span className="text-emerald-500">into more clicks</span></h2>
                     </div>
 
                     <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -633,7 +633,7 @@ export default function ABLandingPage({
                         <h3 className="text-xl font-bold mt-2 mb-2 text-slate-900">Be seen where it matters</h3>
                         <p className="text-sm text-slate-500 mb-6">Your website will be featured on the landing page and in the leaderboard</p>
                         <div className="text-4xl font-black mb-6 flex justify-center items-baseline gap-1 text-slate-900">
-                            $25 <span className="text-base font-medium text-slate-500">/month</span>
+                            $25 <span className="text-base font-medium text-slate-500">One time</span>
                         </div>
                         <button
                             onClick={() => setShowFeaturedModal(true)}
