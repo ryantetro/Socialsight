@@ -661,7 +661,7 @@ export default function HomeContent() {
       }
 
       {/* Hero Section */}
-      <section className={cn(
+      <section id="hero" className={cn(
         "transition-all duration-1000 ease-in-out overflow-hidden relative",
         result || activeTab !== 'audit' ? "max-h-0 opacity-0 py-0" : "max-h-[1200px] pt-12 md:pt-16 pb-20 md:pb-32 px-6 opacity-100"
       )}>
