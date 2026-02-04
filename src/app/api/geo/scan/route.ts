@@ -306,6 +306,7 @@ export async function POST(req: NextRequest) {
       await supabase.from('analytics_sites').insert({ id: siteId, domain: urlObj.hostname });
     }
 
+    // Do not include og_image so insert works even if migration 20260204120000_geo_scans_og_image is not applied
     const { data: scanRow, error: scanError } = await supabase
       .from('geo_scans')
       .insert({
@@ -317,7 +318,6 @@ export async function POST(req: NextRequest) {
         entity_score,
         schema_score,
         reference_score,
-        og_image
       })
       .select('id')
       .single();

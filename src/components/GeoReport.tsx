@@ -19,6 +19,7 @@ import { GeoScanResult, GeoIssue } from '@/types';
 import { cn } from '@/lib/utils';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { createPortal } from 'react-dom';
+import { PRICE_DISPLAY, CTA_LABELS } from '@/config/pricing';
 
 const BUCKETS = [
   { key: 'crawl_score' as const, label: 'Crawl', icon: Globe },
@@ -45,6 +46,18 @@ interface GeoReportProps {
   onMarkApplied?: (geoIssueId: string) => void;
   appliedIds?: Set<string>;
   pageBreakdown?: Array<{ url: string; page_score: number; issues_count: number }>;
+  /** When false and user clicks Copy Fix, call this instead of copying (Pro paywall). */
+  isPaid?: boolean;
+  /** When anonymous user clicks Copy, call this to show signup modal (no pricing). */
+  onShowSignupModal?: () => void;
+  /** When logged-in free user clicks Copy and Pro required, call this (legacy/fallback). */
+  onCopyFixWhenLocked?: () => void;
+  /** Called when user should go to Monitor tab (e.g. after all fixes applied). */
+  onGoToMonitor?: () => void;
+  /** If null/undefined, user is anonymous — Copy shows signup gate. If set, logged-in (free can copy). */
+  user?: { id: string } | null;
+  /** When user clicks Start Pro in panel/modal (second-fix moment). */
+  onStartPro?: () => void;
 }
 
 const CATEGORY_ORDER = ['crawl', 'structure', 'entity', 'schema', 'reference'] as const;
@@ -115,7 +128,7 @@ function microcopy(issue: GeoIssue) {
   };
 }
 
-export default function GeoReport({ data, onMarkApplied, appliedIds = new Set(), pageBreakdown }: GeoReportProps) {
+export default function GeoReport({ data, onMarkApplied, appliedIds = new Set(), pageBreakdown, isPaid = true, onShowSignupModal, onCopyFixWhenLocked, onGoToMonitor, user, onStartPro }: GeoReportProps) {
   const status = statusForScore(data.overall_score);
   const tones = toneClasses(status.tone);
 
@@ -137,6 +150,12 @@ export default function GeoReport({ data, onMarkApplied, appliedIds = new Set(),
   const [packStep, setPackStep] = useState(0);
   const [packError, setPackError] = useState<string | null>(null);
   const [packResult, setPackResult] = useState<any>(null);
+  const completionShownRef = useRef(false);
+  const [showCompletion, setShowCompletion] = useState(false);
+  const [showProValueModal, setShowProValueModal] = useState(false);
+  const [showMonitorGateModal, setShowMonitorGateModal] = useState(false);
+  const topFixOpenedTrackedRef = useRef(false);
+  const secondFixOpenedTrackedRef = useRef(false);
 
   useEffect(() => {
     if (!packLoading) {
@@ -153,9 +172,25 @@ export default function GeoReport({ data, onMarkApplied, appliedIds = new Set(),
     setMounted(true);
   }, []);
 
+  const firstFixViewedTrackedRef = useRef(false);
   useEffect(() => {
     if (!mounted) return;
     if (isPanelOpen) {
+      if (!firstFixViewedTrackedRef.current) {
+        firstFixViewedTrackedRef.current = true;
+        try {
+          fetch('/api/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              site_id: 'socialsight_landing',
+              event_type: 'first_fix_viewed',
+              path: typeof window !== 'undefined' ? window.location.pathname : '/',
+              referrer: typeof document !== 'undefined' ? document.referrer || undefined : undefined,
+            }),
+          }).catch(() => {});
+        } catch { /* no-op */ }
+      }
       const prev = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
       return () => {
@@ -163,6 +198,17 @@ export default function GeoReport({ data, onMarkApplied, appliedIds = new Set(),
       };
     }
   }, [isPanelOpen, mounted]);
+
+  // Show completion state when first issue is marked applied
+  const appliedCount = appliedIds.size;
+  useEffect(() => {
+    if (appliedCount >= 1 && !completionShownRef.current) {
+      completionShownRef.current = true;
+      setShowCompletion(true);
+      const t = setTimeout(() => setShowCompletion(false), 6000);
+      return () => clearTimeout(t);
+    }
+  }, [appliedCount]);
 
   // On-demand generation when the Fix panel opens or the selected issue changes
   useEffect(() => {
@@ -239,6 +285,8 @@ export default function GeoReport({ data, onMarkApplied, appliedIds = new Set(),
     return scored.slice(0, 5);
   }, [data.issues]);
 
+  const topIssue = priorityQueue[0] ?? null;
+
   // Group issues by category (compact cards)
   const issuesByCategory = useMemo(() => {
     const map: Record<GeoCategory, GeoIssue[]> = {
@@ -279,6 +327,14 @@ export default function GeoReport({ data, onMarkApplied, appliedIds = new Set(),
 
   const openFix = (issue: GeoIssue) => {
     if (!issue.id) return;
+    if (topIssue?.id === issue.id && !topFixOpenedTrackedRef.current) {
+      topFixOpenedTrackedRef.current = true;
+      trackConversion('top_fix_opened');
+    }
+    if (appliedIds.size >= 1 && !secondFixOpenedTrackedRef.current) {
+      secondFixOpenedTrackedRef.current = true;
+      trackConversion('second_fix_opened');
+    }
     setActiveIssueId(issue.id);
     setCopiedId(null);
     setFixTab('generated');
@@ -292,7 +348,34 @@ export default function GeoReport({ data, onMarkApplied, appliedIds = new Set(),
     setCopiedId(null);
   };
 
+  const trackConversion = (eventType: string) => {
+    try {
+      if (typeof window === 'undefined') return;
+      fetch('/api/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          site_id: 'socialsight_landing',
+          event_type: eventType,
+          path: window.location.pathname,
+          referrer: document.referrer || undefined,
+        }),
+      }).catch(() => {});
+    } catch { /* no-op */ }
+  };
+
   const copyFix = async (text: string, id: string) => {
+    trackConversion('copy_fix_clicked');
+    trackConversion('copy_clicked');
+    // Anonymous: show signup modal (no pricing). Logged-in free: allow copy.
+    if (!user && onShowSignupModal) {
+      onShowSignupModal();
+      return;
+    }
+    if (!isPaid && onCopyFixWhenLocked) {
+      onCopyFixWhenLocked();
+      return;
+    }
     await navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 1600);
@@ -319,9 +402,116 @@ export default function GeoReport({ data, onMarkApplied, appliedIds = new Set(),
     }
   };
 
+  // Step 2 done when at least one fix has been applied (not when panel is opened)
+  const step2Done = appliedIds.size >= 1;
+  const step3Current = step2Done;
+  const allFixesApplied = data.issues.length > 0 && appliedIds.size >= data.issues.length;
+
+  const steps = [
+    { id: 1, label: 'Scan', done: true },
+    { id: 2, label: 'Fix first issue', done: step2Done, current: !step2Done },
+    { id: 3, label: 'Monitor weekly', done: false, current: step3Current },
+  ];
+
   return (
     <div className="space-y-10 animate-fade-in">
-      {/* 1) HERO SUMMARY CARD */}
+      {/* Progress — 3 dots spread out with labels, current step glowing blue */}
+      <div className="max-w-2xl mx-auto flex justify-between items-start">
+        {steps.map((step) => (
+          <div key={step.id} className="flex flex-col items-center gap-2 min-w-0 flex-1">
+            {step.id === 3 && allFixesApplied && onGoToMonitor ? (
+              <button
+                type="button"
+                onClick={onGoToMonitor}
+                className="h-4 w-4 shrink-0 rounded-full border-0 bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ring-4 ring-blue-500/30"
+                title="Go to Monitor"
+                aria-label="Go to Monitor"
+              />
+            ) : (
+              <div
+                className={cn(
+                  'h-4 w-4 shrink-0 rounded-full transition-colors',
+                  step.done && 'bg-green-500',
+                  step.current && !step.done && 'bg-blue-500 ring-4 ring-blue-500/30',
+                  !step.done && !step.current && 'bg-slate-300'
+                )}
+                aria-hidden
+              />
+            )}
+            <span
+              className={cn(
+                'text-center text-xs font-medium max-w-[8rem]',
+                step.done && 'text-green-600',
+                step.current && !step.done && 'text-slate-900 font-semibold',
+                !step.done && !step.current && 'text-slate-500'
+              )}
+            >
+              {step.label}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* All fixes applied — go to Monitor */}
+      {allFixesApplied && onGoToMonitor && (
+        <div className="rounded-2xl border border-green-200 bg-green-50 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <p className="text-lg font-black text-green-800">All fixes applied</p>
+            <p className="text-green-700 font-medium text-sm mt-0.5">Monitor your site to track changes over time.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onGoToMonitor}
+            className="shrink-0 px-5 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors"
+          >
+            Open Monitor
+          </button>
+        </div>
+      )}
+
+      {/* Monitoring intro — after 2 fixes, before all applied */}
+      {appliedIds.size >= 2 && !allFixesApplied && (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <p className="text-lg font-black text-slate-900">Want to track this automatically?</p>
+            <p className="text-slate-600 font-medium text-sm mt-0.5">We can re-scan weekly and alert you if your GEO score changes.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (isPaid && onGoToMonitor) {
+                trackConversion('monitor_enabled');
+                onGoToMonitor();
+              } else {
+                setShowMonitorGateModal(true);
+              }
+            }}
+            className="shrink-0 px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-black transition-colors"
+          >
+            Enable Monitoring
+          </button>
+        </div>
+      )}
+
+      {/* Completion state after first fix applied */}
+      {showCompletion && (
+        <div className="rounded-2xl bg-green-50 border border-green-200 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-in fade-in duration-300">
+          <div>
+            <p className="text-2xl font-black text-green-800">Nice — GEO score improved</p>
+            <p className="text-[11px] font-black uppercase tracking-widest text-green-600 mt-1">Next Recommended Fix</p>
+            <p className="text-green-700 font-medium mt-0.5">Keep going with the next fix below.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setShowCompletion(false); startFixing(); }}
+            className="shrink-0 px-4 py-2 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700"
+          >
+            Fix Next →
+          </button>
+        </div>
+      )}
+
+      {/* 1) HERO SUMMARY CARD — Score first, then Biggest Issue below */}
       <section className="bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-sm overflow-hidden relative">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-amber-500 to-green-500 opacity-15" />
 
@@ -359,10 +549,10 @@ export default function GeoReport({ data, onMarkApplied, appliedIds = new Set(),
           <div className="lg:col-span-8 space-y-4">
             <div className="space-y-2">
               <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
-                Your site is not AI-readable yet
+                Your site is not AI-visible yet
               </h2>
               <p className="text-slate-500 font-medium text-base max-w-2xl">
-                Fix the items below to improve your AI visibility and citations.
+                Fixing a few structural issues can significantly improve your chances of being cited by AI engines.
               </p>
             </div>
 
@@ -416,6 +606,29 @@ export default function GeoReport({ data, onMarkApplied, appliedIds = new Set(),
           </div>
         </div>
       </section>
+
+      {/* Biggest Issue Blocking You — below hero */}
+      {topIssue && (
+        <section className="bg-red-50 border border-red-100 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-widest text-red-600 mb-1.5">
+              Biggest issue blocking AI visibility
+            </p>
+            <p className="text-lg font-bold text-slate-900">
+              {microcopy(topIssue).title}
+            </p>
+            <p className="text-sm text-slate-500 mt-0.5">
+              {microcopy(topIssue).why}
+            </p>
+          </div>
+          <button
+            onClick={() => openFix(topIssue)}
+            className="shrink-0 px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-sm hover:bg-black transition-colors active:scale-95"
+          >
+            Fix This First
+          </button>
+        </section>
+      )}
 
       {/* 2) PRIORITY FIX QUEUE */}
       <section id="priority-fix-queue" className="bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-sm">
@@ -764,6 +977,22 @@ export default function GeoReport({ data, onMarkApplied, appliedIds = new Set(),
             </div>
 
             <div className="p-6 border-t border-slate-100 space-y-3">
+              {!isPaid && appliedIds.size >= 1 && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+                  <p className="text-[11px] font-black uppercase tracking-widest text-amber-700">Pro Feature</p>
+                  <p className="text-sm font-bold text-slate-900">Generate AI-powered full-page fixes</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      trackConversion('upgrade_clicked');
+                      setShowProValueModal(true);
+                    }}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-900 text-white font-black text-sm hover:bg-black transition-colors"
+                  >
+                    Start Pro – {PRICE_DISPLAY.proShort}
+                  </button>
+                </div>
+              )}
               <button
                 disabled={!activeIssue?.id || !onMarkApplied || applied(activeIssue?.id)}
                 onClick={() => {
@@ -794,6 +1023,66 @@ export default function GeoReport({ data, onMarkApplied, appliedIds = new Set(),
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+
+      {/* Monitor gate modal — free user clicked Enable Monitoring */}
+      {showMonitorGateModal && mounted && createPortal((
+        <div className="fixed inset-0 z-[114] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowMonitorGateModal(false)} aria-hidden />
+          <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-2xl" role="dialog" aria-modal="true">
+            <h3 className="text-xl font-black text-slate-900 mb-2">Monitoring is a Pro feature</h3>
+            <ul className="space-y-2 text-slate-600 font-medium text-sm mb-6">
+              <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✔</span> Weekly scans</li>
+              <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✔</span> Alerts</li>
+              <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✔</span> Regression detection</li>
+            </ul>
+            <button
+              type="button"
+              onClick={() => {
+                setShowMonitorGateModal(false);
+                onStartPro?.();
+              }}
+              className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700"
+            >
+              {CTA_LABELS.startPro}
+            </button>
+          </div>
+        </div>
+      ), document.body)}
+
+      {/* Pro value modal — second-fix moment */}
+      {showProValueModal && mounted && createPortal((
+        <div className="fixed inset-0 z-[115] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowProValueModal(false)} aria-hidden />
+          <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-2xl" role="dialog" aria-modal="true">
+            <h3 className="text-xl font-black text-slate-900 mb-2">Generate production-ready fixes</h3>
+            <ul className="space-y-2 text-slate-600 font-medium text-sm mb-6">
+              <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✔</span> Full page rewrites</li>
+              <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✔</span> Schema blocks</li>
+              <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✔</span> IDE-ready prompts</li>
+              <li className="flex items-center gap-2"><span className="text-green-500 font-bold">✔</span> Unlimited fixes</li>
+            </ul>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProValueModal(false);
+                  onStartPro?.();
+                }}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700"
+              >
+                {CTA_LABELS.startPro}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowProValueModal(false)}
+                className="px-4 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50"
+              >
+                Maybe Later
+              </button>
             </div>
           </div>
         </div>

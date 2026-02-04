@@ -2,10 +2,11 @@
 'use client'
 
 import { useState, Suspense } from 'react'
-import { Eye, EyeOff, Loader2, Lock, Mail, User, ArrowRight, ArrowLeft } from 'lucide-react'
+import { Loader2, Lock, Mail, User, ArrowRight, ArrowLeft, Check } from 'lucide-react'
 import { login, signup } from '../auth/actions'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { PLANS, STRIPE_PRICE_IDS } from '@/config/pricing'
 
 function LoginContent() {
     const [isLogin, setIsLogin] = useState(true)
@@ -79,12 +80,51 @@ function LoginContent() {
                 <div className="w-full max-w-md space-y-10">
                     <div className="text-center md:text-left space-y-2">
                         <h1 className="text-4xl font-black text-slate-900 tracking-tight">
-                            {isLogin ? 'Welcome back' : 'Start your growth'}
+                            {priceId ? "You're one step away from fixing your site" : (isLogin ? 'Welcome back' : 'Start your growth')}
                         </h1>
                         <p className="text-slate-500 font-medium text-lg">
-                            {isLogin ? 'Enter your credentials to access your dashboard.' : 'Create an account to track real analytics.'}
+                            {priceId
+                                ? 'Sign in or create an account to continue to checkout.'
+                                : (isLogin ? 'Enter your credentials to access your dashboard.' : 'Create an account to track real analytics.')}
                         </p>
                     </div>
+
+                    {priceId && (
+                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">
+                                Your plan
+                            </p>
+                            {priceId === STRIPE_PRICE_IDS.pro && (
+                                <>
+                                    <p className="text-lg font-bold text-slate-900">{PLANS.pro.name} — ${PLANS.pro.priceMonthly}/month</p>
+                                    <p className="text-sm text-slate-500">Includes: Fix Mode, Monitor, Compare, Analytics</p>
+                                </>
+                            )}
+                            {priceId === STRIPE_PRICE_IDS.featured && (
+                                <>
+                                    <p className="text-lg font-bold text-slate-900">{PLANS.featured.name} — ${PLANS.featured.priceMonthly}/month</p>
+                                    <p className="text-sm text-slate-500">Everything in Pro + landing & leaderboard placement</p>
+                                </>
+                            )}
+                            {(priceId === STRIPE_PRICE_IDS.lifetime || priceId === STRIPE_PRICE_IDS.allAccess) && (
+                                <>
+                                    <p className="text-lg font-bold text-slate-900">{PLANS.lifetime.name} — ${PLANS.lifetime.price} one-time</p>
+                                    <p className="text-sm text-slate-500">Everything forever. No monthly fees.</p>
+                                </>
+                            )}
+                            {priceId && priceId !== STRIPE_PRICE_IDS.pro && priceId !== STRIPE_PRICE_IDS.featured && priceId !== STRIPE_PRICE_IDS.lifetime && priceId !== STRIPE_PRICE_IDS.allAccess && (
+                                <p className="text-lg font-bold text-slate-900">Complete checkout to unlock</p>
+                            )}
+                        </div>
+                    )}
+
+                    {!priceId && (
+                        <ul className="flex flex-col gap-2 text-slate-600 font-medium text-sm">
+                            <li className="flex items-center gap-2"><Check size={16} className="text-green-500 shrink-0" /> Save your GEO report</li>
+                            <li className="flex items-center gap-2"><Check size={16} className="text-green-500 shrink-0" /> Generate AI fixes</li>
+                            <li className="flex items-center gap-2"><Check size={16} className="text-green-500 shrink-0" /> Track improvements</li>
+                        </ul>
+                    )}
 
                     <form action={handleSubmit} className="space-y-6">
                         {!isLogin && (
@@ -149,7 +189,7 @@ function LoginContent() {
                         >
                             {isLoading ? <Loader2 className="animate-spin" /> : (
                                 <>
-                                    {isLogin ? 'Sign In' : 'Create Account'} <ArrowRight size={20} />
+                                    {priceId ? 'Continue' : (isLogin ? 'Sign In' : 'Create Account')} <ArrowRight size={20} />
                                 </>
                             )}
                         </button>

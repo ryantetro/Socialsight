@@ -4,6 +4,7 @@ import React from 'react';
 import { Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createPortal } from 'react-dom';
+import { STRIPE_PRICE_IDS, PLANS } from '@/config/pricing';
 
 interface LockedFeatureProps {
     children: React.ReactNode;
@@ -18,7 +19,7 @@ export default function LockedFeature({
     children,
     isLocked,
     blurAmount = 'md',
-    label = "Unlock Premium Features",
+    label = `Generate Fix (${PLANS.pro.name})`,
     onUnlock,
     className,
     lockBody = false,
@@ -44,8 +45,7 @@ export default function LockedFeature({
         if (onUnlock) {
             onUnlock();
         } else {
-            // Default to opening checkout for LTD if no handler provided
-            const priceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD;
+            const priceId = STRIPE_PRICE_IDS.pro ?? STRIPE_PRICE_IDS.lifetime;
             if (priceId) {
                 window.location.href = '/login?priceId=' + priceId;
             }
@@ -61,9 +61,9 @@ export default function LockedFeature({
                 <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">
                     <Lock size={18} />
                 </div>
-                <h3 className="text-white font-bold mb-1">Upgrade to Unlock</h3>
+                <h3 className="text-white font-bold mb-1">Unlock this feature</h3>
                 <p className="text-slate-400 text-xs mb-4 max-w-[200px] mx-auto leading-relaxed">
-                    Get access to AI suggestions, all preview formats, and fixes.
+                    Get access to AI suggestions, generate fixes, and all preview formats.
                 </p>
                 <button
                     onClick={handleUnlock}

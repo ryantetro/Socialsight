@@ -7,6 +7,7 @@ import { InspectionResult } from '@/types';
 import { cn } from '@/lib/utils';
 import Navbar from '@/components/Navbar';
 import { useProfile } from '@/hooks/useProfile';
+import { PLANS, STRIPE_PRICE_IDS, CTA_LABELS, PRICE_DISPLAY, RISK_REVERSAL } from '@/config/pricing';
 
 interface LeaderboardItem {
     domain: string;
@@ -38,6 +39,9 @@ interface ABLandingPageProps {
     isRestoring?: boolean;
     isLimitReached?: boolean;
     setActiveTab?: (tab: any) => void;
+    remainingScans?: number;
+    dailyLimit?: number;
+    hasUnlimitedScans?: boolean;
 }
 
 export default function ABLandingPage({
@@ -52,7 +56,10 @@ export default function ABLandingPage({
     onReset = () => { },
     isRestoring = false,
     isLimitReached = false,
-    setActiveTab = () => { }
+    setActiveTab = () => { },
+    remainingScans = 0,
+    dailyLimit = 3,
+    hasUnlimitedScans = false
 }: ABLandingPageProps) {
     const { user: profileUser, loading: authLoading } = useProfile();
     const [result, setResult] = useState<InspectionResult | null>(null);
@@ -145,6 +152,9 @@ export default function ABLandingPage({
                 isRestoring={isRestoring || false}
                 onResult={handleResult}
                 isLimitReached={isLimitReached || false}
+                remainingScans={remainingScans}
+                dailyLimit={dailyLimit}
+                hasUnlimitedScans={hasUnlimitedScans}
             />
 
             {/* Hero Section */}
@@ -172,7 +182,7 @@ export default function ABLandingPage({
                     <div className="max-w-xl mx-auto pt-8">
                         <div className="p-1 bg-gradient-to-r from-blue-100 to-emerald-100 rounded-2xl shadow-xl shadow-blue-900/5">
                             <div className="bg-white rounded-xl p-2">
-                                <ScraperForm onResult={handleResult} variant="hero" align="left" />
+                                <ScraperForm onResult={handleResult} variant="hero" align="left" limitReached={isLimitReached} remainingScans={remainingScans} dailyLimit={hasUnlimitedScans ? Infinity : dailyLimit} hasUnlimitedScans={hasUnlimitedScans} />
                             </div>
                         </div>
 
@@ -591,19 +601,20 @@ export default function ABLandingPage({
                             ))}
                         </div>
 
-                        {/* Monthly Card */}
+                        {/* Pro Card */}
                         <div className="bg-white border border-slate-200 rounded-3xl p-8 flex flex-col items-center text-center relative hover:border-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/10 transition-all group">
-                            <h3 className="text-xl font-bold mb-2 text-slate-900">Monthly</h3>
+                            <h3 className="text-xl font-bold mb-2 text-slate-900">{PLANS.pro.name}</h3>
                             <div className="text-5xl font-black mb-2 flex items-baseline gap-1 text-slate-900">
-                                $5 <span className="text-base font-medium text-slate-500">/month</span>
+                                ${PLANS.pro.priceMonthly} <span className="text-base font-medium text-slate-500">/month</span>
                             </div>
                             <button
-                                onClick={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_MONTHLY)}
+                                onClick={() => handleCheckout(STRIPE_PRICE_IDS.pro ?? undefined)}
                                 className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold mt-8 hover:bg-slate-800 transition-colors shadow-lg shadow-slate-900/10"
                             >
-                                Subscribe Monthly
+                                {CTA_LABELS.startPro}
                             </button>
                             <p className="text-xs text-slate-500 mt-4 font-medium">Cancel anytime</p>
+                            <p className="text-xs text-slate-400 mt-1">{RISK_REVERSAL}</p>
                         </div>
 
                         {/* Lifetime Card */}
@@ -611,36 +622,38 @@ export default function ABLandingPage({
                             <div className="absolute -top-4 px-4 py-1 bg-emerald-500 text-white text-xs font-black uppercase tracking-widest rounded-full shadow-lg shadow-emerald-500/30">
                                 Most Popular
                             </div>
-                            <h3 className="text-xl font-bold mb-2 text-slate-900">Lifetime</h3>
+                            <h3 className="text-xl font-bold mb-2 text-slate-900">{PLANS.lifetime.name}</h3>
                             <div className="text-5xl font-black mb-2 flex items-baseline gap-1 text-slate-900">
-                                $35 <span className="text-base font-medium text-slate-500">One time</span>
+                                ${PLANS.lifetime.price} <span className="text-base font-medium text-slate-500">one-time</span>
                             </div>
                             <button
-                                onClick={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+                                onClick={() => handleCheckout(STRIPE_PRICE_IDS.lifetime ?? undefined)}
                                 className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold mt-8 hover:bg-slate-800 transition-colors shadow-lg shadow-slate-900/10"
                             >
-                                Get Lifetime Access
+                                {CTA_LABELS.getLifetime}
                             </button>
                             <p className="text-xs text-slate-500 mt-4 font-medium">No subscription • One time payment</p>
+                            <p className="text-xs text-slate-400 mt-1">{RISK_REVERSAL}</p>
                         </div>
                     </div>
 
-                    {/* Featured Spot */}
+                    {/* Featured */}
                     <div className="max-w-md mx-auto mt-16 bg-slate-50 border border-slate-200 rounded-3xl p-8 pt-12 text-center relative group hover:border-blue-500/50 transition-colors">
                         <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-white border border-blue-100 text-blue-600 text-[10px] font-black uppercase tracking-widest rounded-full flex items-center gap-2 shadow-sm shadow-blue-500/10">
-                            <Star size={12} className="fill-blue-500 text-blue-500" /> Featured Spot
+                            <Star size={12} className="fill-blue-500 text-blue-500" /> {PLANS.featured.name}
                         </div>
                         <h3 className="text-xl font-bold mt-2 mb-2 text-slate-900">Be seen where it matters</h3>
-                        <p className="text-sm text-slate-500 mb-6">Your website will be featured on the landing page and in the leaderboard</p>
+                        <p className="text-sm text-slate-500 mb-6">{PLANS.featured.description}. Your website will be featured on the landing page and in the leaderboard.</p>
                         <div className="text-4xl font-black mb-6 flex justify-center items-baseline gap-1 text-slate-900">
-                            $25 <span className="text-base font-medium text-slate-500">/month</span>
+                            ${PLANS.featured.priceMonthly} <span className="text-base font-medium text-slate-500">/month</span>
                         </div>
                         <button
                             onClick={() => setShowFeaturedModal(true)}
                             className="w-full py-3 bg-white border border-slate-200 text-slate-900 rounded-xl font-bold hover:scale-105 transition-transform shadow-sm"
                         >
-                            Get Featured
+                            {CTA_LABELS.getFeatured}
                         </button>
+                        <p className="text-xs text-slate-400 mt-3">{RISK_REVERSAL}</p>
                     </div>
                 </div>
             </section>
@@ -744,7 +757,7 @@ export default function ABLandingPage({
                                             className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-base flex items-center justify-center gap-2 hover:bg-black hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-slate-900/10 disabled:opacity-70 disabled:pointer-events-none"
                                         >
                                             <CreditCard size={18} />
-                                            Proceed to Checkout ($25)
+                                            Proceed to Checkout (${PLANS.featured.priceMonthly})
                                         </button>
                                         <p className="text-center text-xs text-slate-400 mt-4 font-medium">
                                             Secure payment via Stripe • One-time fee

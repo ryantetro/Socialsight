@@ -6,6 +6,7 @@ import { InspectionResult, GeoScanResult } from '@/types';
 import { cn } from '@/lib/utils';
 import UserNav from '@/components/UserNav';
 import ScraperForm from '@/components/ScraperForm';
+import { STRIPE_PRICE_IDS, CTA_LABELS } from '@/config/pricing';
 
 interface NavbarProps {
     user: any;
@@ -21,6 +22,9 @@ interface NavbarProps {
     isRestoring: boolean;
     onResult: (data: InspectionResult) => void;
     isLimitReached: boolean;
+    remainingScans?: number;
+    dailyLimit?: number;
+    hasUnlimitedScans?: boolean;
 }
 
 export default function Navbar({
@@ -36,7 +40,10 @@ export default function Navbar({
     onReset,
     isRestoring,
     onResult,
-    isLimitReached
+    isLimitReached,
+    remainingScans = 0,
+    dailyLimit = 3,
+    hasUnlimitedScans = false
 }: NavbarProps) {
 
     const hasReport = !!(result || geoResult);
@@ -78,7 +85,7 @@ export default function Navbar({
 
                 {hasReport && (
                     <div className="hidden lg:block animate-fade-in">
-                        <ScraperForm onResult={onResult} variant="compact" limitReached={isLimitReached} align="left" />
+                        <ScraperForm onResult={onResult} variant="compact" limitReached={isLimitReached} align="left" remainingScans={remainingScans} dailyLimit={hasUnlimitedScans ? Infinity : dailyLimit} hasUnlimitedScans={hasUnlimitedScans} />
                     </div>
                 )}
             </div>
@@ -119,10 +126,10 @@ export default function Navbar({
                     <div className="flex items-center gap-3">
                         {result && !isPaid && (
                             <button
-                                onClick={() => onCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD)}
+                                onClick={() => onCheckout(STRIPE_PRICE_IDS.pro ?? undefined)}
                                 className="hidden xl:flex px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95 whitespace-nowrap"
                             >
-                                Upgrade Plan
+                                {CTA_LABELS.startPro}
                             </button>
                         )}
                         <UserNav

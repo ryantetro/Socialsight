@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useCallback, Suspense, useEffect } from 'react';
+import { useState, useCallback, Suspense, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ScraperForm from './ScraperForm';
 import SocialPreviews from '@/components/SocialPreviews';
@@ -33,15 +33,28 @@ import UserNav from '@/components/UserNav';
 
 
 import VictoryModal from '@/components/VictoryModal';
+import SignupGateModal from '@/components/SignupGateModal';
+import { PLANS, STRIPE_PRICE_IDS, CTA_LABELS, PRICE_DISPLAY, RISK_REVERSAL } from '@/config/pricing';
 
 export default function HomeContent() {
   const [result, setResult] = useState<InspectionResult | null>(null);
   const [geoResult, setGeoResult] = useState<GeoScanResult | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
+  const [geoProgressStep, setGeoProgressStep] = useState(0);
   const [geoAppliedIds, setGeoAppliedIds] = useState<Set<string>>(new Set());
+
+  const GEO_SCAN_STEPS = [
+    'Social metadata audited',
+    'Running GEO scan',
+    'Analyzing structure',
+    'Generating fixes',
+  ];
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [showVictoryModal, setShowVictoryModal] = useState(false);
+  const [showSoftUpgradeModal, setShowSoftUpgradeModal] = useState(false);
+  const [showSignupGateModal, setShowSignupGateModal] = useState(false);
+  const [showLifetimeUpsell, setShowLifetimeUpsell] = useState(false);
   const [abVariant, setAbVariant] = useState<'A' | 'B' | 'C' | null>(null);
   const [pricingVariant, setPricingVariant] = useState<'A' | 'B' | null>(null);
   const [globalStats, setGlobalStats] = useState<{ totalScans: number, activity: any[] }>({ totalScans: 13530, activity: [] });
@@ -81,10 +94,10 @@ export default function HomeContent() {
   };
 
   const mainPriceId = pricingVariant === 'B'
-    ? process.env.NEXT_PUBLIC_STRIPE_PRICE_ALL_ACCESS
-    : process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD;
+    ? (STRIPE_PRICE_IDS.allAccess ?? STRIPE_PRICE_IDS.lifetime)
+    : STRIPE_PRICE_IDS.lifetime;
 
-  const mainPriceLabel = pricingVariant === 'B' ? '$9' : '$99';
+  const mainPriceLabel = pricingVariant === 'B' ? `$${PLANS.lifetime.price}` : PRICE_DISPLAY.lifetimeShort;
 
 
   const [debugTier, setDebugTier] = useState<{ active: boolean, tier: any }>({ active: false, tier: 'free' });
@@ -117,12 +130,15 @@ export default function HomeContent() {
   };
 
   const isPaid = effectiveTier !== 'free' && !isDebugSignedOut;
+  const hasUnlimitedScans = isPaid;
 
   const [scanCount, setScanCount] = useState(0);
 
   const searchParams = useSearchParams();
   const scanId = searchParams.get('scanId');
 
+  const signupCompletedTrackedRef = useRef(false);
+  const checkoutSuccessTrackedRef = useRef(false);
   useEffect(() => {
     const view = searchParams.get('view');
     const success = searchParams.get('success');
@@ -133,6 +149,16 @@ export default function HomeContent() {
 
     if (success === 'true' && refresh) {
       refresh();
+      if (typeof window !== 'undefined') window.sessionStorage.setItem('ss_success_return', 'true');
+      if (!checkoutSuccessTrackedRef.current) {
+        checkoutSuccessTrackedRef.current = true;
+        trackConversion('checkout_success');
+      }
+    }
+
+    if (view === 'geo' && user && !signupCompletedTrackedRef.current) {
+      signupCompletedTrackedRef.current = true;
+      trackConversion('signup_completed');
     }
 
     // Clear parameters from URL so they don't persist or interfere with manual tab switching
@@ -142,22 +168,68 @@ export default function HomeContent() {
         window.history.replaceState({}, '', newUrl);
       }, 100);
     }
-  }, [searchParams, refresh]);
+  }, [searchParams, refresh, user]);
+
+  // Lifetime upsell: show once after Pro checkout success (not for Lifetime buyers)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (sessionStorage.getItem('ss_success_return') !== 'true') return;
+    if (sessionStorage.getItem('ss_lifetime_upsell_shown') === 'true') {
+      sessionStorage.removeItem('ss_success_return');
+      return;
+    }
+    const isLifetime = profile?.tier === 'ltd' || hasAllAccess;
+    if (isPaid && !isLifetime) {
+      sessionStorage.setItem('ss_lifetime_upsell_shown', 'true');
+      sessionStorage.removeItem('ss_success_return');
+      setShowLifetimeUpsell(true);
+    } else if (profile !== undefined) {
+      sessionStorage.removeItem('ss_success_return');
+    }
+  }, [profile?.tier, isPaid, hasAllAccess, profile]);
 
   useEffect(() => {
-    // Check daily scan limit
+    // Check daily scan limit (localStorage only for anonymous)
     const saved = localStorage.getItem('daily_scans');
     if (saved) {
-      const { date, count } = JSON.parse(saved);
-      const today = new Date().toISOString().split('T')[0];
-      if (date === today) {
-        setScanCount(count);
-      } else {
-        localStorage.setItem('daily_scans', JSON.stringify({ date: today, count: 0 }));
+      try {
+        const { date, count } = JSON.parse(saved);
+        const today = new Date().toISOString().split('T')[0];
+        if (date === today) {
+          setScanCount(count);
+        } else {
+          localStorage.setItem('daily_scans', JSON.stringify({ date: today, count: 0 }));
+          setScanCount(0);
+        }
+      } catch {
         setScanCount(0);
       }
     }
   }, []);
+
+  // Sync scan count with server when authenticated
+  useEffect(() => {
+    if (!user) return;
+    const today = new Date().toISOString().split('T')[0];
+    let localCount = 0;
+    try {
+      const saved = localStorage.getItem('daily_scans');
+      if (saved) {
+        const { date, count } = JSON.parse(saved);
+        if (date === today) localCount = count;
+      }
+    } catch {
+      // ignore
+    }
+    fetch('/api/me/scan-usage')
+      .then((r) => r.json())
+      .then(({ count: serverCount }: { count: number }) => {
+        const merged = Math.max(localCount, serverCount ?? 0);
+        setScanCount(merged);
+        localStorage.setItem('daily_scans', JSON.stringify({ date: today, count: merged }));
+      })
+      .catch(() => {});
+  }, [user?.id]);
 
   // Load scan from ID if provided
   useEffect(() => {
@@ -183,6 +255,53 @@ export default function HomeContent() {
 
     loadScan();
   }, [scanId]);
+
+  // Restore GEO from last_geo_scan_id when we have result but no geoResult (e.g. after refresh)
+  useEffect(() => {
+    if (!result || geoResult !== null || geoLoading) return;
+    const lastGeoId = typeof window !== 'undefined' ? localStorage.getItem('last_geo_scan_id') : null;
+    if (!lastGeoId) return;
+    let cancelled = false;
+    fetch(`/api/geo/report/${lastGeoId}`)
+      .then((r) => {
+        if (!r.ok) throw new Error('Report not found');
+        return r.json();
+      })
+      .then((data: GeoScanResult) => {
+        if (!cancelled) setGeoResult(data);
+      })
+      .catch(() => {
+        if (!cancelled && typeof window !== 'undefined') localStorage.removeItem('last_geo_scan_id');
+      });
+    return () => { cancelled = true; };
+  }, [result, geoResult, geoLoading]);
+
+  // Staged GEO scan progress: advance step every 2.5s while loading
+  useEffect(() => {
+    if (!geoLoading) {
+      setGeoProgressStep(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setGeoProgressStep((s) => Math.min(s + 1, GEO_SCAN_STEPS.length - 1));
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [geoLoading]);
+
+  // Soft upgrade modal after 2 fixes (one-time, free users only)
+  useEffect(() => {
+    if (typeof window === 'undefined' || isPaid || geoAppliedIds.size < 2) return;
+    if (localStorage.getItem('ss_soft_upgrade_shown') === 'true') return;
+    setShowSoftUpgradeModal(true);
+    localStorage.setItem('ss_soft_upgrade_shown', 'true');
+    try {
+      fetch('/api/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ site_id: 'socialsight_landing', event_type: 'upgrade_modal_opened', path: window.location.pathname, referrer: document.referrer || undefined }),
+      }).catch(() => {});
+    } catch { /* no-op */ }
+  }, [isPaid, geoAppliedIds.size]);
 
   // A/B Variant Assignment
   useEffect(() => {
@@ -218,21 +337,26 @@ export default function HomeContent() {
 
   // Load Social Proof Stats
   useEffect(() => {
+    const ac = new AbortController();
     const fetchGlobalStats = async () => {
       try {
-        const res = await fetch('/api/stats/summary');
+        const res = await fetch('/api/stats/summary', { signal: ac.signal });
         const data = await res.json();
         if (data.totalScans) {
           setGlobalStats(data);
         }
       } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') return;
         console.error('Failed to fetch global stats', e);
       }
     };
     fetchGlobalStats();
     // Refresh activity every 30s
     const interval = setInterval(fetchGlobalStats, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      ac.abort();
+      clearInterval(interval);
+    };
   }, []);
 
   // Cycle Live Notifications
@@ -304,6 +428,8 @@ export default function HomeContent() {
   };
 
   const isLimitReached = permissions ? scanCount >= permissions.dailyLimit : false;
+  const dailyLimit = permissions?.dailyLimit ?? 3;
+  const remainingScans = Math.max(0, dailyLimit - scanCount);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -330,6 +456,22 @@ export default function HomeContent() {
       .finally(() => setGeoLoading(false));
   };
 
+  const trackConversion = (eventType: string) => {
+    try {
+      if (typeof window === 'undefined') return;
+      fetch('/api/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          site_id: 'socialsight_landing',
+          event_type: eventType,
+          path: window.location.pathname,
+          referrer: document.referrer || undefined,
+        }),
+      }).catch(() => {});
+    } catch { /* no-op */ }
+  };
+
   const handleResult = (data: InspectionResult) => {
     setIsTransitioning(true);
     const urlToScan = data.metadata?.url || '';
@@ -338,10 +480,12 @@ export default function HomeContent() {
     setActiveTab('geo');
     setGeoResult(null);
     setGeoLoading(true);
+    setGeoProgressStep(0);
     setIsTransitioning(false);
     incrementScan();
 
     if (urlToScan) {
+      trackConversion('scan_started');
       fetch('/api/geo/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -349,7 +493,14 @@ export default function HomeContent() {
       })
         .then((r) => r.json())
         .then((d) => {
-          if (d.scanId) setGeoResult(d as GeoScanResult);
+          if (d.scanId) {
+            setGeoResult(d as GeoScanResult);
+            try {
+              localStorage.setItem('last_geo_scan_id', d.scanId);
+            } catch { /* ignore */ }
+            trackConversion('scan_completed');
+            trackConversion('scan_complete');
+          }
         })
         .catch(() => {})
         .finally(() => setGeoLoading(false));
@@ -386,10 +537,24 @@ export default function HomeContent() {
           .single();
 
         if (data && data.result) {
+          setResult(data.result as InspectionResult);
+          setActiveTab('geo');
+          setGeoResult(null);
+          const lastGeoId = localStorage.getItem('last_geo_scan_id');
+          if (lastGeoId) {
+            try {
+              const geoRes = await fetch(`/api/geo/report/${lastGeoId}`);
+              if (geoRes.ok) {
+                const geoData = await geoRes.json();
+                setGeoResult(geoData as GeoScanResult);
+              } else {
+                localStorage.removeItem('last_geo_scan_id');
+              }
+            } catch {
+              localStorage.removeItem('last_geo_scan_id');
+            }
+          }
           setTimeout(() => {
-            setResult(data.result as InspectionResult);
-            setActiveTab('geo');
-            setGeoResult(null);
             setIsRestoring(false);
             setIsTransitioning(false);
           }, 300);
@@ -402,10 +567,24 @@ export default function HomeContent() {
       if (saved) {
         try {
           const data = JSON.parse(saved);
+          setResult(data);
+          setActiveTab('geo');
+          setGeoResult(null);
+          const lastGeoId = localStorage.getItem('last_geo_scan_id');
+          if (lastGeoId) {
+            try {
+              const geoRes = await fetch(`/api/geo/report/${lastGeoId}`);
+              if (geoRes.ok) {
+                const geoData = await geoRes.json();
+                setGeoResult(geoData as GeoScanResult);
+              } else {
+                localStorage.removeItem('last_geo_scan_id');
+              }
+            } catch {
+              localStorage.removeItem('last_geo_scan_id');
+            }
+          }
           setTimeout(() => {
-            setResult(data);
-            setActiveTab('geo');
-            setGeoResult(null);
             setIsRestoring(false);
             setIsTransitioning(false);
           }, 300);
@@ -435,6 +614,7 @@ export default function HomeContent() {
       setGeoResult(null);
       setGeoAppliedIds(new Set());
       localStorage.removeItem('last_scan_result');
+      localStorage.removeItem('last_geo_scan_id');
       setActiveTab('audit');
       setIsTransitioning(false);
     }, 300);
@@ -488,7 +668,10 @@ export default function HomeContent() {
 
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      if (data.url) window.location.href = data.url;
+      if (data.url) {
+        trackConversion('checkout_started');
+        window.location.href = data.url;
+      }
     } catch (e) {
       console.error("Checkout Failed", e);
       alert("Checkout Failed: " + (e instanceof Error ? e.message : "Unknown Error"));
@@ -559,6 +742,9 @@ export default function HomeContent() {
             isRestoring={isRestoring}
             isLimitReached={isLimitReached}
             setActiveTab={setActiveTab}
+            remainingScans={remainingScans}
+            dailyLimit={dailyLimit}
+            hasUnlimitedScans={hasUnlimitedScans}
           />
         </div>
       </>
@@ -622,6 +808,92 @@ export default function HomeContent() {
         pricingVariant={pricingVariant}
       />
 
+      {/* Soft upgrade modal: after 2 fixes, one-time */}
+      {showSoftUpgradeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl animate-in zoom-in-95">
+            <h3 className="text-xl font-black text-slate-900 mb-2">You&apos;re improving your site</h3>
+            <p className="text-slate-600 font-medium mb-6">Unlock unlimited fixes + monitoring with Pro.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowSoftUpgradeModal(false);
+                  handleCheckout(STRIPE_PRICE_IDS.pro ?? undefined, 'geo');
+                }}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700"
+              >
+                {CTA_LABELS.startPro}
+              </button>
+              <button
+                onClick={() => setShowSoftUpgradeModal(false)}
+                className="px-4 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50"
+              >
+                Maybe later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <SignupGateModal
+        open={showSignupGateModal}
+        onClose={() => setShowSignupGateModal(false)}
+        onContinueWithEmail={() => {
+          setShowSignupGateModal(false);
+          window.location.href = '/login?view=geo';
+        }}
+      />
+
+      {/* Lifetime upsell — after Pro checkout success, one-time */}
+      {showLifetimeUpsell && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 max-w-md w-[calc(100%-2rem)] rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl flex flex-col sm:flex-row sm:items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-slate-900">Upgrade to Lifetime – {PRICE_DISPLAY.lifetimeShort}</p>
+            <p className="text-slate-500 text-sm mt-0.5">Lock in access forever.</p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setShowLifetimeUpsell(false);
+                handleCheckout(STRIPE_PRICE_IDS.lifetime ?? STRIPE_PRICE_IDS.allAccess ?? undefined, 'geo');
+              }}
+              className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-black"
+            >
+              {CTA_LABELS.getLifetime}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowLifetimeUpsell(false)}
+              className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Sticky bottom bar — free users after GEO scan */}
+      {activeTab === 'geo' && geoResult && !isPaid && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur-sm px-4 py-3 flex items-center justify-between gap-4 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-bold text-slate-700">Free plan</span>
+            <span className="text-slate-500">·</span>
+            <span className="text-slate-500">2 fixes remaining</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              trackConversion('upgrade_clicked');
+              handleCheckout(STRIPE_PRICE_IDS.pro ?? STRIPE_PRICE_IDS.lifetime ?? undefined, 'geo');
+            }}
+            className="shrink-0 px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-black transition-colors"
+          >
+            Upgrade to Pro
+          </button>
+        </div>
+      )}
+
       {/* Dynamic Header/Navbar */}
 
       {/* Dynamic Header/Navbar */}
@@ -639,6 +911,9 @@ export default function HomeContent() {
         isRestoring={isRestoring}
         onResult={handleResult}
         isLimitReached={isLimitReached}
+        remainingScans={remainingScans}
+        dailyLimit={dailyLimit}
+        hasUnlimitedScans={hasUnlimitedScans}
       />
 
       {/* Pro Banner - Hide if Paid */}
@@ -651,8 +926,8 @@ export default function HomeContent() {
             <span className="relative z-10 flex items-center justify-center gap-2">
               <Zap size={14} className="fill-yellow-400 text-yellow-400 animate-pulse" />
               {pricingVariant === 'B'
-                ? `Experimental Offer: Grab All-Access for ${mainPriceLabel}`
-                : `Launch Special: Grab Lifetime Deal for ${mainPriceLabel}`}
+                ? `Experimental Offer: ${CTA_LABELS.getLifetime} for ${mainPriceLabel}`
+                : `Launch Special: ${CTA_LABELS.getLifetime} — ${PRICE_DISPLAY.lifetimeShort}`}
               <span className="hidden sm:inline opacity-50 mx-2">|</span>
               <span className="hidden sm:inline text-slate-300 group-hover:text-white transition-colors">Prices increase in 48h</span>
             </span>
@@ -690,6 +965,9 @@ export default function HomeContent() {
                   onResult={handleResult}
                   limitReached={isLimitReached}
                   prefillUrl={selectedUrl}
+                  remainingScans={remainingScans}
+                  dailyLimit={isPaid ? Infinity : dailyLimit}
+                  hasUnlimitedScans={hasUnlimitedScans}
                 />
 
                 <div className="flex flex-wrap items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-1000 delay-300">
@@ -868,7 +1146,7 @@ export default function HomeContent() {
             </p>
 
             <div className="pt-8">
-              <ScraperForm onResult={handleResult} limitReached={isLimitReached} />
+              <ScraperForm onResult={handleResult} limitReached={isLimitReached} remainingScans={remainingScans} dailyLimit={isPaid ? Infinity : dailyLimit} hasUnlimitedScans={hasUnlimitedScans} />
             </div>
           </div>
         )}
@@ -919,15 +1197,56 @@ export default function HomeContent() {
                   </div>
                 ) : activeTab === 'geo' && (result || geoResult || geoLoading) ? (
                   geoLoading && !geoResult ? (
-                    <div className="py-20 flex flex-col items-center justify-center gap-4">
-                      <div className="w-12 h-12 border-4 border-blue-600/30 border-t-blue-600 rounded-full animate-spin" />
-                      <p className="text-sm font-bold text-slate-500">Loading GEO report…</p>
+                    <div className="py-16 flex flex-col items-center justify-center max-w-md mx-auto">
+                      <div className="w-full rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+                        <div className="mb-6">
+                          <h3 className="text-lg font-black text-slate-900 tracking-tight">Building your GEO report</h3>
+                          <p className="text-slate-500 text-sm font-medium mt-1">Analyzing your site for AI visibility.</p>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden mb-8">
+                          <div
+                            className="h-full rounded-full bg-blue-600 transition-all duration-500 ease-out"
+                            style={{ width: `${((geoProgressStep + 1) / GEO_SCAN_STEPS.length) * 100}%` }}
+                          />
+                        </div>
+                        <ul className="space-y-4">
+                          {GEO_SCAN_STEPS.map((label, i) => (
+                            <li key={i} className="flex items-center gap-4">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+                                {i < geoProgressStep ? (
+                                  <CheckCircle2 className="h-6 w-6 text-green-500 transition-opacity duration-300" />
+                                ) : i === geoProgressStep ? (
+                                  <div className="h-5 w-5 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin" />
+                                ) : (
+                                  <span className="h-6 w-6 rounded-full border-2 border-slate-200 bg-slate-50" />
+                                )}
+                              </div>
+                              <span
+                                className={cn(
+                                  'text-sm font-medium transition-colors duration-200',
+                                  i < geoProgressStep && 'text-green-700',
+                                  i === geoProgressStep && 'text-slate-900',
+                                  i > geoProgressStep && 'text-slate-400'
+                                )}
+                              >
+                                {label}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     </div>
                   ) : geoResult ? (
                     <GeoReport
                       data={geoResult}
                       pageBreakdown={geoResult.pages}
                       appliedIds={geoAppliedIds}
+                      isPaid={isPaid}
+                      user={user ?? undefined}
+                      onShowSignupModal={() => setShowSignupGateModal(true)}
+                      onCopyFixWhenLocked={() => handleCheckout(STRIPE_PRICE_IDS.pro ?? STRIPE_PRICE_IDS.lifetime ?? undefined, 'geo')}
+                      onGoToMonitor={() => setActiveTab('monitor')}
+                      onStartPro={() => handleCheckout(STRIPE_PRICE_IDS.pro ?? STRIPE_PRICE_IDS.lifetime ?? undefined, 'geo')}
                       onMarkApplied={async (id) => {
                         try {
                           await fetch('/api/geo/fixes/applied', {
@@ -975,7 +1294,7 @@ export default function HomeContent() {
                             if (isPaid) {
                               setActiveTab('fix');
                             } else {
-                              handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_LTD, 'fix');
+                              handleCheckout(STRIPE_PRICE_IDS.pro ?? STRIPE_PRICE_IDS.lifetime ?? undefined, 'fix');
                             }
                           }}
                           className={cn(
@@ -991,7 +1310,7 @@ export default function HomeContent() {
                             </>
                           ) : (
                             <>
-                              <Zap size={16} fill="white" /> Fix Issues ({mainPriceLabel})
+                              <Zap size={16} fill="white" /> Fix Issues ({CTA_LABELS.startPro})
                             </>
                           )}
                         </button>
@@ -1004,7 +1323,7 @@ export default function HomeContent() {
                         score={result.score || 0}
                         issues={result.issues || []}
                         stats={result.stats}
-                        onCheckout={() => handleCheckout(mainPriceId, 'fix')}
+                        onCheckout={() => handleCheckout(STRIPE_PRICE_IDS.pro ?? mainPriceId, 'fix')}
                         pricingVariant={pricingVariant}
                       />
                     </div>
@@ -1029,8 +1348,8 @@ export default function HomeContent() {
                       <div className="lg:col-span-8 animate-fade-in animate-delay-2 h-full">
                         <LockedFeature
                           isLocked={!isPaid}
-                          label="Unlock AI Suggestions"
-                          onUnlock={() => handleCheckout(mainPriceId, 'audit')}
+                          label={`Generate Fix (${PLANS.pro.name})`}
+                          onUnlock={() => handleCheckout(STRIPE_PRICE_IDS.pro ?? mainPriceId, 'audit')}
                           className="h-full rounded-2xl"
                         >
                           <AISuggestions
@@ -1045,7 +1364,7 @@ export default function HomeContent() {
                           score={result.score || 0}
                           issues={result.issues || []}
                           stats={result.stats}
-                          onCheckout={() => handleCheckout(mainPriceId, 'fix')}
+                          onCheckout={() => handleCheckout(STRIPE_PRICE_IDS.pro ?? mainPriceId, 'fix')}
                           pricingVariant={pricingVariant}
                         />
                       </div>
@@ -1054,7 +1373,7 @@ export default function HomeContent() {
                 ) : activeTab === 'compare' && result ? (
                   <LockedFeature
                     isLocked={permissions ? !permissions.canBenchmark : true}
-                    label="Upgrade to Benchmark"
+                    label={`Compare Competitors (${PLANS.pro.name})`}
                     onUnlock={() => handleCheckout(mainPriceId, 'compare')}
                     className="rounded-[2rem]"
                     lockBody
@@ -1065,7 +1384,7 @@ export default function HomeContent() {
                 ) : activeTab === 'monitor' ? (
                   <LockedFeature
                     isLocked={permissions ? !permissions.canMonitor : true}
-                    label="Unlock Daily Monitoring"
+                    label={`Track Weekly Changes (${PLANS.pro.name})`}
                     onUnlock={() => handleCheckout(mainPriceId, 'monitor')}
                     className="rounded-[2rem]"
                     lockBody
@@ -1076,8 +1395,8 @@ export default function HomeContent() {
                 ) : activeTab === 'analytics' ? (
                   <LockedFeature
                     isLocked={permissions ? !permissions.canAnalyze : true}
-                    label="Unlock Analytics (Growth Plan)"
-                    onUnlock={() => handleCheckout(process.env.NEXT_PUBLIC_STRIPE_PRICE_GROWTH || mainPriceId, 'analytics')}
+                    label={`Unlock Analytics (${PLANS.pro.name})`}
+                    onUnlock={() => handleCheckout(STRIPE_PRICE_IDS.pro ?? mainPriceId, 'analytics')}
                     className="rounded-[2rem]"
                     lockBody
                     pageCenter
@@ -1090,7 +1409,7 @@ export default function HomeContent() {
                     <div className="space-y-8 animate-fade-in">
                       <LockedFeature
                         isLocked={permissions ? !permissions.canFix : true}
-                        label="Unlock Remediation Studio"
+                        label={`Generate Fix (${PLANS.pro.name})`}
                         onUnlock={() => handleCheckout(mainPriceId, 'fix')}
                         className="rounded-[2rem]"
                         lockBody
@@ -1423,15 +1742,15 @@ export default function HomeContent() {
                       priceId: null
                     },
                     {
-                      name: "All-Access",
-                      price: "$9",
-                      period: "one-time",
+                      name: PLANS.lifetime.name,
+                      price: `$${PLANS.lifetime.price}`,
+                      period: " one-time",
                       desc: "Lifetime access to everything.",
                       features: ["The Guardian: Daily Monitoring", "Unlimited Benchmarking", "10,000 tracked impressions", "AI Headline A/B Testing", "Priority Support", "No Monthly Fees"],
-                      cta: "Get Lifetime Access",
+                      cta: CTA_LABELS.getLifetime,
                       popular: true,
                       variant: "blue",
-                      priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ALL_ACCESS
+                      priceId: STRIPE_PRICE_IDS.allAccess ?? STRIPE_PRICE_IDS.lifetime ?? undefined
                     }
                   ] : [
                     {
@@ -1444,35 +1763,35 @@ export default function HomeContent() {
                       priceId: null
                     },
                     {
-                      name: "Founder",
-                      price: "$19",
+                      name: PLANS.pro.name,
+                      price: `$${PLANS.pro.priceMonthly}`,
                       period: "/mo",
-                      desc: "For serious solopreneurs.",
-                      features: ["Everything in Free", "The Guardian: Daily Monitoring", "1,000 tracked impressions/mo", "Competitor Benchmarking"],
-                      cta: "Start Trial",
+                      desc: "Unlimited scans, generate fixes, Compare, Monitor, Analytics.",
+                      features: ["Everything in Free", "The Guardian: Daily Monitoring", "Competitor Benchmarking", "Generate AI fixes"],
+                      cta: CTA_LABELS.startPro,
                       popular: true,
                       variant: "blue",
-                      priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_FOUNDER
+                      priceId: STRIPE_PRICE_IDS.pro ?? undefined
                     },
                     {
-                      name: "Growth",
-                      price: "$47",
+                      name: PLANS.featured.name,
+                      price: `$${PLANS.featured.priceMonthly}`,
                       period: "/mo",
-                      desc: "For startups scaling up.",
-                      features: ["Analytics Dashboard", "Image Proxy Tracking", "10,000 tracked impressions", "AI Headline A/B Testing"],
-                      cta: "Get Growth",
+                      desc: PLANS.featured.description,
+                      features: ["Everything in Pro", "Landing & leaderboard placement"],
+                      cta: CTA_LABELS.getFeatured,
                       variant: "white",
-                      priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_GROWTH
+                      priceId: STRIPE_PRICE_IDS.featured ?? undefined
                     },
                     {
-                      name: "Agency",
-                      price: "$127",
-                      period: "/mo",
-                      desc: "For pros measuring ROI.",
-                      features: ["Unlimited Monitoring", "White-label Reports", "Exportable CSV Data", "Priority Support"],
-                      cta: "Contact Sales",
+                      name: PLANS.lifetime.name,
+                      price: `$${PLANS.lifetime.price}`,
+                      period: " one-time",
+                      desc: "Everything forever.",
+                      features: ["Unlimited everything", "No monthly fees", "One-time payment"],
+                      cta: CTA_LABELS.getLifetime,
                       variant: "white",
-                      priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_AGENCY
+                      priceId: STRIPE_PRICE_IDS.lifetime ?? undefined
                     }
                   ]).map((tier, i) => (
                     <div key={i} className={cn(
@@ -1518,6 +1837,7 @@ export default function HomeContent() {
                         )}>
                         {tier.cta}
                       </button>
+                      <p className="text-center text-xs text-slate-400 mt-2">{RISK_REVERSAL}</p>
                     </div>
                   ))}
                 </div>
@@ -1541,7 +1861,7 @@ export default function HomeContent() {
                         <div className="flex flex-col md:flex-row items-center gap-4 pt-2">
                           <div className="text-5xl font-black text-white flex items-center gap-3">
                             <span className="text-3xl text-blue-200 line-through opacity-60">$299</span>
-                            $99
+                            ${PLANS.lifetime.price}
                           </div>
                           <div className="px-3 py-1 bg-red-500 text-white text-xs font-bold uppercase rounded-lg shadow-sm animate-pulse">Only 14/50 spots left</div>
                         </div>
@@ -1549,7 +1869,7 @@ export default function HomeContent() {
                       <button
                         onClick={() => handleCheckout(mainPriceId)}
                         className="px-10 py-5 bg-white text-blue-700 rounded-2xl font-black text-lg shadow-xl hover:bg-blue-50 transition-colors shrink-0 active:scale-95 cursor-pointer">
-                        Grab Lifetime Deal
+                        {CTA_LABELS.getLifetime}
                       </button>
                     </div>
                   </div>

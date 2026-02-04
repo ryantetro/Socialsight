@@ -12,9 +12,13 @@ interface ScraperFormProps {
     limitReached?: boolean;
     align?: 'left' | 'right';
     prefillUrl?: string; // New prop for sample audits
+    remainingScans?: number;
+    dailyLimit?: number;
+    /** When true, user has unlimited scans (paid tier); scan-limit UI is hidden. */
+    hasUnlimitedScans?: boolean;
 }
 
-export default function ScraperForm({ onResult, variant = 'hero', limitReached = false, align = 'right', prefillUrl = '' }: ScraperFormProps) {
+export default function ScraperForm({ onResult, variant = 'hero', limitReached = false, align = 'right', prefillUrl = '', remainingScans = 0, dailyLimit = 3, hasUnlimitedScans = false }: ScraperFormProps) {
     const [url, setUrl] = useState('');
     const [isOpen, setIsOpen] = useState(false);
     const { loading, error, scrape } = useScrape();
@@ -57,6 +61,10 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
     };
 
     const isCompact = variant === 'compact';
+    const showRemaining = Number.isFinite(dailyLimit) && !hasUnlimitedScans;
+    const remainingCopy = remainingScans > 0
+        ? `${remainingScans} free scans remaining`
+        : '0 free scans — upgrade to continue';
 
     // Helper to get the site ID from the pixel script
     const getTrackingId = () => {
@@ -109,6 +117,7 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
             <div className="relative font-sans">
                 <button
                     onClick={() => !limitReached && setIsOpen(!isOpen)}
+                    title={showRemaining ? remainingCopy : undefined}
                     className={cn(
                         "px-5 md:px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95 whitespace-nowrap flex items-center gap-2",
                         isOpen && "ring-4 ring-blue-500/20 bg-blue-700",
@@ -127,39 +136,45 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
                         {/* Overlay to close on click outside */}
                         <div className="fixed inset-0 z-0 h-screen w-screen cursor-default" onClick={() => setIsOpen(false)} role="button" />
 
-                        <div className="relative z-10 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xl shadow-blue-900/10 flex items-center gap-2 ring-4 ring-slate-50">
-                            <form onSubmit={handleSubmit} className="flex-1 flex items-center gap-2">
-                                <input
-                                    type="text"
-                                    placeholder="Enter website URL..."
-                                    autoFocus
-                                    value={url}
-                                    onChange={(e) => setUrl(e.target.value)}
-                                    className={cn(
-                                        "flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 transition-all font-medium text-slate-800 placeholder:text-slate-400",
-                                        error && "border-red-300 bg-red-50"
-                                    )}
-                                />
+                        <div className="relative z-10 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xl shadow-blue-900/10 flex flex-col gap-2 ring-4 ring-slate-50">
+                            <div className="flex items-center gap-2">
+                                <form onSubmit={handleSubmit} className="flex-1 flex items-center gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Enter website URL..."
+                                        autoFocus
+                                        value={url}
+                                        onChange={(e) => setUrl(e.target.value)}
+                                        className={cn(
+                                            "flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 transition-all font-medium text-slate-800 placeholder:text-slate-400",
+                                            error && "border-red-300 bg-red-50"
+                                        )}
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        data-track="compact-audit-btn"
+                                        className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition-colors disabled:opacity-50 flex items-center gap-2 shrink-0 shadow-md shadow-blue-500/20"
+                                    >
+                                        {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Scan"}
+                                    </button>
+                                </form>
                                 <button
-                                    type="submit"
-                                    disabled={loading}
-                                    data-track="compact-audit-btn"
-                                    className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition-colors disabled:opacity-50 flex items-center gap-2 shrink-0 shadow-md shadow-blue-500/20"
+                                    onClick={() => setIsOpen(false)}
+                                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                                 >
-                                    {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Scan"}
+                                    <span className="sr-only">Close</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
                                 </button>
-                            </form>
-                            <button
-                                onClick={() => setIsOpen(false)}
-                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                            >
-                                <span className="sr-only">Close</span>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
-                            </button>
-
+                            </div>
+                            {showRemaining && (
+                                <p className="text-[11px] font-bold text-slate-500 px-1">
+                                    {remainingCopy}
+                                </p>
+                            )}
                             {/* Error Popover */}
                             {error && (
-                                <div className="absolute top-full mt-2 left-0 right-0 bg-red-50 text-red-600 text-[10px] font-bold px-3 py-2 rounded-lg border border-red-100 flex items-center gap-2 shadow-lg mb-2">
+                                <div className="bg-red-50 text-red-600 text-[10px] font-bold px-3 py-2 rounded-lg border border-red-100 flex items-center gap-2">
                                     <AlertCircle className="w-3 h-3" /> {error}
                                 </div>
                             )}
@@ -229,9 +244,12 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
                     <span className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-green-500" /> Free</span>
                 </div>
             )}
-            {limitReached && (
-                <p className="mt-4 text-red-500 text-sm text-center font-bold animate-pulse">
-                    You have reached your daily limit of 3 free scans.
+            {showRemaining && (
+                <p className={cn(
+                    "mt-4 text-sm text-center font-bold",
+                    remainingScans === 0 ? "text-red-500 animate-pulse" : "text-slate-500"
+                )}>
+                    {remainingCopy}
                 </p>
             )}
         </div>
