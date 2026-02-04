@@ -14,8 +14,10 @@ import CompetitorBoard from '@/components/CompetitorBoard';
 import Dashboard from '@/components/Dashboard';
 import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 import ScanHistory from '@/components/ScanHistory';
-import { Share2, Zap, Shield, BarChart3, ArrowLeft, LayoutDashboard, Code, Image as ImageIcon, Scale, Activity, PieChart, CheckCircle2, Lock, Clock, X, Twitter, Linkedin, Facebook, MessageSquare, ImageOff } from 'lucide-react';
-import { InspectionResult } from '@/types';
+import GeoScanHistory from '@/components/GeoScanHistory';
+import GeoReport from '@/components/GeoReport';
+import { Share2, Zap, Shield, BarChart3, ArrowLeft, LayoutDashboard, Code, Image as ImageIcon, Scale, Activity, PieChart, CheckCircle2, Lock, Clock, X, Twitter, Linkedin, Facebook, MessageSquare, ImageOff, Globe } from 'lucide-react';
+import { InspectionResult, GeoScanResult } from '@/types';
 import { cn } from '@/lib/utils';
 import PlanPill from '@/components/PlanPill';
 import LockedFeature from '@/components/LockedFeature';
@@ -34,6 +36,9 @@ import VictoryModal from '@/components/VictoryModal';
 
 export default function HomeContent() {
   const [result, setResult] = useState<InspectionResult | null>(null);
+  const [geoResult, setGeoResult] = useState<GeoScanResult | null>(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoAppliedIds, setGeoAppliedIds] = useState<Set<string>>(new Set());
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [showVictoryModal, setShowVictoryModal] = useState(false);
@@ -47,14 +52,22 @@ export default function HomeContent() {
   const [abData, setAbData] = useState<any>(null);
 
   // Initialize from localStorage immediately if possible, but safely for SSR.
-  const [activeTab, setActiveTabState] = useState<'audit' | 'fix' | 'compare' | 'monitor' | 'analytics' | 'history'>('audit');
+  const [activeTab, setActiveTabState] = useState<'geo' | 'audit' | 'fix' | 'compare' | 'monitor' | 'analytics' | 'history'>('audit');
+  const [historyFilter, setHistoryFilter] = useState<'og' | 'geo'>('og');
   const [selectedUrl, setSelectedUrl] = useState('');
 
   // Persistence: Read on mount
   useEffect(() => {
     const saved = localStorage.getItem('socialsight_active_tab');
-    if (saved && ['audit', 'fix', 'compare', 'monitor', 'analytics', 'history'].includes(saved)) {
+    if (saved && ['geo', 'audit', 'fix', 'compare', 'monitor', 'analytics', 'history'].includes(saved)) {
       setActiveTabState(saved as any);
+    }
+
+    // In development, force Stealth Mode ON to avoid polluting analytics.
+    if (process.env.NODE_ENV === 'development') {
+      localStorage.setItem('ss_stealth_mode', 'true');
+      setIsStealth(true);
+      return;
     }
 
     const stealth = localStorage.getItem('ss_stealth_mode') === 'true';
@@ -62,7 +75,7 @@ export default function HomeContent() {
   }, []);
 
   // Persistence: Write on change
-  const setActiveTab = (tab: 'audit' | 'fix' | 'compare' | 'monitor' | 'analytics' | 'history') => {
+  const setActiveTab = (tab: 'geo' | 'audit' | 'fix' | 'compare' | 'monitor' | 'analytics' | 'history') => {
     setActiveTabState(tab);
     localStorage.setItem('socialsight_active_tab', tab);
   };
@@ -114,7 +127,7 @@ export default function HomeContent() {
     const view = searchParams.get('view');
     const success = searchParams.get('success');
 
-    if (view && ['audit', 'fix', 'compare', 'monitor', 'analytics', 'history'].includes(view)) {
+    if (view && ['geo', 'audit', 'fix', 'compare', 'monitor', 'analytics', 'history'].includes(view)) {
       setActiveTab(view as any);
     }
 
@@ -298,28 +311,55 @@ export default function HomeContent() {
     window.location.reload();
   };
 
+  /** When selecting a past Open Graph scan from History: load audit only, do not run GEO scan. */
+  const handleSelectOgScan = (data: InspectionResult) => {
+    setResult(data);
+    localStorage.setItem('last_scan_result', JSON.stringify(data));
+    setActiveTab('audit');
+  };
+
+  /** When selecting a past GEO scan from History: fetch report and show in-app (same header). */
+  const handleSelectGeoScan = (scanId: string) => {
+    setActiveTab('geo');
+    setGeoLoading(true);
+    setGeoResult(null);
+    fetch(`/api/geo/report/${scanId}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('Report not found'))))
+      .then((d: GeoScanResult) => setGeoResult(d))
+      .catch(() => {})
+      .finally(() => setGeoLoading(false));
+  };
+
   const handleResult = (data: InspectionResult) => {
     setIsTransitioning(true);
-    setTimeout(async () => {
-      setResult(data);
-      // Save result for restoration
-      localStorage.setItem('last_scan_result', JSON.stringify(data));
+    const urlToScan = data.metadata?.url || '';
+    setResult(data);
+    localStorage.setItem('last_scan_result', JSON.stringify(data));
+    setActiveTab('geo');
+    setGeoResult(null);
+    setGeoLoading(true);
+    setIsTransitioning(false);
+    incrementScan();
 
-      // Note: We do NOT insert into DB here anymore because the /api/inspect endpoint
-      // already calls recordScore() which inserts the scan. This prevents double-counting.
+    if (urlToScan) {
+      fetch('/api/geo/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: urlToScan })
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.scanId) setGeoResult(d as GeoScanResult);
+        })
+        .catch(() => {})
+        .finally(() => setGeoLoading(false));
+    } else {
+      setGeoLoading(false);
+    }
 
-      setActiveTab('audit');
-      setIsTransitioning(false);
-      incrementScan();
-
-      // Trigger Victory Modal if score is high and user is free
-      if (data.score >= 90 && !isPaid) {
-        setTimeout(() => {
-          setShowVictoryModal(true);
-        }, 2000);
-      }
-
-    }, 300);
+    if (data.score >= 90 && !isPaid) {
+      setTimeout(() => setShowVictoryModal(true), 2000);
+    }
   };
 
   const handleViewReport = async () => {
@@ -346,10 +386,10 @@ export default function HomeContent() {
           .single();
 
         if (data && data.result) {
-          // Add a slight artificial delay for the transition to feel smooth
           setTimeout(() => {
             setResult(data.result as InspectionResult);
-            setActiveTab('audit');
+            setActiveTab('geo');
+            setGeoResult(null);
             setIsRestoring(false);
             setIsTransitioning(false);
           }, 300);
@@ -364,7 +404,8 @@ export default function HomeContent() {
           const data = JSON.parse(saved);
           setTimeout(() => {
             setResult(data);
-            setActiveTab('audit');
+            setActiveTab('geo');
+            setGeoResult(null);
             setIsRestoring(false);
             setIsTransitioning(false);
           }, 300);
@@ -391,6 +432,8 @@ export default function HomeContent() {
     setIsTransitioning(true);
     setTimeout(() => {
       setResult(null);
+      setGeoResult(null);
+      setGeoAppliedIds(new Set());
       localStorage.removeItem('last_scan_result');
       setActiveTab('audit');
       setIsTransitioning(false);
@@ -455,6 +498,7 @@ export default function HomeContent() {
 
 
   const tabs = [
+    { id: 'geo', icon: Globe, label: 'GEO', visible: !!result },
     { id: 'audit', icon: LayoutDashboard, label: 'Audit', visible: true },
     { id: 'fix', icon: Zap, label: 'Fix Mode', fill: true, visible: !!result },
     { id: 'compare', icon: Scale, label: 'Compare', visible: !!result },
@@ -586,6 +630,7 @@ export default function HomeContent() {
         tier={effectiveTier}
         isPaid={isPaid}
         result={result}
+        geoResult={geoResult}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onCheckout={(priceId) => handleCheckout(priceId)} // adapter needed as handleCheckout takes 2 args optionally
@@ -837,8 +882,67 @@ export default function HomeContent() {
               {/* Smooth Transition Wrapper */}
               <div key={activeTab} className="animate-fade-in w-full">
                 {activeTab === 'history' ? (
-                  <ScanHistory user={user} onSelectScan={(data) => handleResult(data)} />
-                ) : !result && activeTab !== 'monitor' && activeTab !== 'analytics' ? (
+                  <div className="space-y-8 animate-fade-in">
+                    <div className="flex items-end justify-between gap-4 flex-wrap">
+                      <div>
+                        <h1 className="text-3xl font-black text-slate-900">Scan History</h1>
+                        <p className="text-slate-500 font-medium mt-2">Revisit past Open Graph or GEO scans.</p>
+                      </div>
+                      <div className="flex rounded-2xl border border-slate-200 bg-slate-50/50 p-1">
+                        <button
+                          onClick={() => setHistoryFilter('og')}
+                          className={cn(
+                            'px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2',
+                            historyFilter === 'og' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'
+                          )}
+                        >
+                          <LayoutDashboard size={14} />
+                          Open Graph scans
+                        </button>
+                        <button
+                          onClick={() => setHistoryFilter('geo')}
+                          className={cn(
+                            'px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2',
+                            historyFilter === 'geo' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'
+                          )}
+                        >
+                          <Globe size={14} />
+                          GEO scans
+                        </button>
+                      </div>
+                    </div>
+                    {historyFilter === 'og' ? (
+                      <ScanHistory user={user} onSelectScan={(data) => handleSelectOgScan(data)} showHeading={false} />
+                    ) : (
+                      <GeoScanHistory onSelectScan={handleSelectGeoScan} />
+                    )}
+                  </div>
+                ) : activeTab === 'geo' && (result || geoResult || geoLoading) ? (
+                  geoLoading && !geoResult ? (
+                    <div className="py-20 flex flex-col items-center justify-center gap-4">
+                      <div className="w-12 h-12 border-4 border-blue-600/30 border-t-blue-600 rounded-full animate-spin" />
+                      <p className="text-sm font-bold text-slate-500">Loading GEO report…</p>
+                    </div>
+                  ) : geoResult ? (
+                    <GeoReport
+                      data={geoResult}
+                      pageBreakdown={geoResult.pages}
+                      appliedIds={geoAppliedIds}
+                      onMarkApplied={async (id) => {
+                        try {
+                          await fetch('/api/geo/fixes/applied', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ geo_issue_id: id })
+                          });
+                          setGeoAppliedIds((s) => new Set(s).add(id));
+                        } catch { /* no-op */ }
+                      }}
+                    />
+                  ) : (
+                    <div className="py-20 text-center text-slate-500 font-medium">GEO scan did not return data. Try again or switch to Audit.</div>
+                  )
+                ) : !result && !geoResult && activeTab !== 'monitor' && activeTab !== 'analytics' ? (
                   <div className="py-20 text-center space-y-6 animate-fade-in">
                     <div className="inline-flex items-center justify-center p-4 bg-slate-50 rounded-full mb-4">
                       <LayoutDashboard className="w-8 h-8 text-slate-300" />

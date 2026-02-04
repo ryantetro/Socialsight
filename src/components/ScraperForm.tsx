@@ -74,6 +74,14 @@ export default function ScraperForm({ onResult, variant = 'hero', limitReached =
     };
 
     const trackEvent = (eventType: string, extraData = {}) => {
+        // Respect Stealth Mode (and force it in development via HomeContent)
+        try {
+            if (process.env.NODE_ENV === 'development') return;
+            if (typeof window !== 'undefined' && localStorage.getItem('ss_stealth_mode') === 'true') return;
+        } catch {
+            // ignore
+        }
+
         const siteId = getTrackingId();
         if (!siteId) return;
 

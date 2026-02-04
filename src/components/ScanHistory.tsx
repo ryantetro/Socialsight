@@ -18,9 +18,11 @@ interface ScanHistoryItem {
 interface ScanHistoryProps {
     user: User | null;
     onSelectScan: (result: InspectionResult) => void;
+    /** When true (default), show the "Scan History" heading. Set false when used inside a combined history view. */
+    showHeading?: boolean;
 }
 
-export default function ScanHistory({ user, onSelectScan }: ScanHistoryProps) {
+export default function ScanHistory({ user, onSelectScan, showHeading = true }: ScanHistoryProps) {
     const [scans, setScans] = useState<ScanHistoryItem[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -74,12 +76,14 @@ export default function ScanHistory({ user, onSelectScan }: ScanHistoryProps) {
 
     return (
         <div className="space-y-8 animate-fade-in">
-            <div className="flex items-end justify-between">
-                <div>
-                    <h1 className="text-3xl font-black text-slate-900">Scan History</h1>
-                    <p className="text-slate-500 font-medium mt-2">Manage and revisit your past audits.</p>
+            {showHeading && (
+                <div className="flex items-end justify-between">
+                    <div>
+                        <h1 className="text-3xl font-black text-slate-900">Scan History</h1>
+                        <p className="text-slate-500 font-medium mt-2">Manage and revisit your past audits.</p>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {scans.length === 0 ? (
                 <div className="bg-white rounded-[2.5rem] p-20 text-center border-2 border-dashed border-slate-200">

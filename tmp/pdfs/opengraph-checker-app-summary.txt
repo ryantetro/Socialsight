@@ -1,0 +1,37 @@
+OpenGraph Checker App Summary
+============================
+
+What it is
+----------
+OpenGraph Checker is a Next.js web app that audits a URL's social metadata (Open Graph and Twitter tags), scores share readiness, and shows how link previews will look. It also layers in monitoring, analytics, and AI-assisted improvements for social CTR.
+
+Who it's for
+------------
+Primary persona: founders, indie hackers, developers, and small growth-focused teams (as listed in playbook.md).
+
+What it does
+------------
+- Audits any URL via /api/inspect and returns metadata, score, and prioritized issues.
+- Shows live social previews for key platforms from extracted OG/Twitter fields.
+- Suggests stronger title/description variants using Gemini (src/app/api/suggest/route.ts).
+- Generates OG image concepts with Gemini and stores image logs in Supabase (ai_images table).
+- Compares up to 3 sites side-by-side in CompetitorBoard.
+- Provides monitoring and scan history views, including re-scan workflows.
+- Tracks traffic/events with a pixel + /api/track, then visualizes funnels/sources in AnalyticsDashboard.
+
+How it works (repo-based architecture)
+--------------------------------------
+- Frontend: Next.js App Router pages + React components under src/app and src/components.
+- Core scan flow: useScrape() -> POST /api/inspect -> axios+cheerio scrape, then Puppeteer+Chromium fallback when blocked/timeouts.
+- Data layer: Supabase clients (browser/server/admin) and SQL migrations for scans, analytics_events, analytics_sites, profiles, and ai_images.
+- Billing/auth: Supabase auth + Stripe checkout/webhook routes that update profile tiering.
+- Telemetry flow: layout injects /public/pixel.js -> /api/track -> analytics_events rows -> AnalyticsDashboard queries.
+- Not found in repo: a complete architecture diagram and explicit production SLO/infra docs.
+
+How to run (minimal)
+--------------------
+1) Install deps: npm install
+2) Set env vars in .env.local (at minimum: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, and NEXT_PUBLIC_STRIPE_PRICE_* values used in code).
+3) Start dev server: npm run dev
+4) Open http://localhost:3000
+5) Not found in repo: a canonical example env file documenting required values.

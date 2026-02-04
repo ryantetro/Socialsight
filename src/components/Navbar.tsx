@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from 'react';
-import { LayoutDashboard, Zap, Scale, Activity, PieChart, Clock } from 'lucide-react';
-import { InspectionResult } from '@/types';
+import { LayoutDashboard, Zap, Scale, Activity, PieChart, Clock, Globe } from 'lucide-react';
+import { InspectionResult, GeoScanResult } from '@/types';
 import { cn } from '@/lib/utils';
 import UserNav from '@/components/UserNav';
 import ScraperForm from '@/components/ScraperForm';
@@ -12,8 +12,9 @@ interface NavbarProps {
     tier: any;
     isPaid: boolean;
     result: InspectionResult | null;
+    geoResult?: GeoScanResult | null;
     activeTab: string;
-    setActiveTab: (tab: 'audit' | 'fix' | 'compare' | 'monitor' | 'analytics' | 'history') => void;
+    setActiveTab: (tab: 'geo' | 'audit' | 'fix' | 'compare' | 'monitor' | 'analytics' | 'history') => void;
     onCheckout: (priceId?: string) => void;
     onViewReport: () => void;
     onReset: () => void;
@@ -27,6 +28,7 @@ export default function Navbar({
     tier,
     isPaid,
     result,
+    geoResult = null,
     activeTab,
     setActiveTab,
     onCheckout,
@@ -37,10 +39,12 @@ export default function Navbar({
     isLimitReached
 }: NavbarProps) {
 
+    const hasReport = !!(result || geoResult);
     const tabs = [
+        { id: 'geo', icon: Globe, label: 'GEO', visible: hasReport },
         { id: 'audit', icon: LayoutDashboard, label: 'Audit', visible: true },
-        { id: 'fix', icon: Zap, label: 'Fix Mode', fill: true, visible: !!result },
-        { id: 'compare', icon: Scale, label: 'Compare', visible: !!result },
+        { id: 'fix', icon: Zap, label: 'Fix Mode', fill: true, visible: hasReport },
+        { id: 'compare', icon: Scale, label: 'Compare', visible: hasReport },
         { id: 'monitor', icon: Activity, label: 'Monitor', visible: true },
         { id: 'analytics', icon: PieChart, label: 'Analytics', visible: true },
         { id: 'history', icon: Clock, label: 'History', visible: true }
@@ -49,7 +53,7 @@ export default function Navbar({
     return (
         <nav className={cn(
             "max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between transition-all duration-700 ease-in-out z-50",
-            result ? "sticky top-0" : "bg-transparent py-6"
+            hasReport ? "sticky top-0" : "bg-transparent py-6"
         )}>
 
             {/* SECTION 1: Logo & Scan */}
@@ -66,13 +70,13 @@ export default function Navbar({
                     {/* Animated Logo Text */}
                     <div className={cn(
                         "overflow-hidden transition-all duration-700 ease-in-out flex flex-col justify-center",
-                        result ? "max-w-0 opacity-0" : "max-w-[200px] opacity-100"
+                        hasReport ? "max-w-0 opacity-0" : "max-w-[200px] opacity-100"
                     )}>
                         <span className="hidden lg:inline whitespace-nowrap">Social<span className="text-blue-600">Sight</span></span>
                     </div>
                 </div>
 
-                {result && (
+                {hasReport && (
                     <div className="hidden lg:block animate-fade-in">
                         <ScraperForm onResult={onResult} variant="compact" limitReached={isLimitReached} align="left" />
                     </div>
@@ -82,7 +86,7 @@ export default function Navbar({
             {/* SECTION 2: Center Navigation (Tabs or Links) */}
             <div className="absolute left-1/2 -translate-x-1/2 flex justify-center z-30 w-full pointer-events-none">
                 <div className="pointer-events-auto">
-                    {(result || activeTab !== 'audit') ? (
+                    {(hasReport || activeTab !== 'audit') ? (
                         <div className="hidden md:flex bg-white/80 backdrop-blur-xl border border-slate-200/50 p-1.5 rounded-2xl shadow-sm items-center gap-1 animate-fade-in">
                             {tabs.map((tab) => (
                                 <button

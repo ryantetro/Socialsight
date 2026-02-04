@@ -80,6 +80,25 @@ body {
       transform: translateX(20px) scale(0.95);
     }
   }
+
+  --animate-shimmer: fix-pack-shimmer 2s ease-in-out infinite;
+  --animate-step-pulse: step-pulse 1.5s ease-in-out infinite;
+  --animate-glow: fix-pack-glow 2.5s ease-in-out infinite;
+
+  @keyframes fix-pack-shimmer {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  @keyframes step-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.85; transform: scale(1.02); }
+  }
+
+  @keyframes fix-pack-glow {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
 }
 
 @layer base {
@@ -103,6 +122,14 @@ body {
 
 .animate-fade-in-up {
   animation: var(--animate-fade-in-up);
+}
+
+.animate-step-pulse {
+  animation: var(--animate-step-pulse);
+}
+
+.animate-fix-pack-glow {
+  animation: var(--animate-glow);
 }
 
 /* Custom Scrollbar Utility */

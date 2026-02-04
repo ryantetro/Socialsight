@@ -41,7 +41,7 @@ export default function DebugPlanSwitcher({
     const tiers: UserTier[] = ['free', 'founder', 'growth', 'agency'];
 
     return (
-        <div className="fixed bottom-4 left-4 z-[100] font-sans">
+        <div className="fixed bottom-4 left-4 z-[9999] font-sans pointer-events-auto">
             {!isOpen && (
                 <button
                     onClick={() => setIsOpen(true)}
@@ -53,7 +53,7 @@ export default function DebugPlanSwitcher({
             )}
 
             {isOpen && (
-                <div className="bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-2xl w-64 animate-in slide-in-from-bottom-2 fade-in">
+                <div className="bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-2xl w-64 animate-in slide-in-from-bottom-2 fade-in pointer-events-auto">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-white font-bold text-xs uppercase tracking-wider">Debug Settings</h3>
                         <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-white">
