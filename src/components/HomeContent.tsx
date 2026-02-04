@@ -110,7 +110,7 @@ export default function HomeContent() {
   const permissions = {
     canMonitor: effectiveTier !== 'free' && !isDebugSignedOut,
     canBenchmark: effectiveTier !== 'free' && !isDebugSignedOut,
-    canAnalyze: (effectiveTier === 'growth' || effectiveTier === 'agency') && !isDebugSignedOut,
+    canAnalyze: (effectiveTier === 'growth' || effectiveTier === 'agency' || effectiveTier === 'ltd') && !isDebugSignedOut,
     canFix: effectiveTier !== 'free' && !isDebugSignedOut,
     canRemoveBranding: effectiveTier === 'agency' && !isDebugSignedOut,
     dailyLimit: effectiveTier === 'free' ? 3 : Infinity
